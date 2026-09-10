@@ -1,0 +1,6 @@
+{
+  "name": "Centralized Lead Admin Dashboard",
+  "description": "Centralized Admin Panel to collect, view, filter, and export user lead data across multiple frontend projects with Express and Prisma.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
