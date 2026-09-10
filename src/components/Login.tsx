@@ -147,7 +147,7 @@ export const Login: React.FC = () => {
           </form>
 
           {/* Quick Demo Credentials Assistant */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
+          {/* <div className="mt-6 pt-5 border-t border-slate-100">
             <div className="flex items-center justify-between text-xs text-slate-500 mb-2.5 font-medium">
               <span className="inline-flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -166,7 +166,7 @@ export const Login: React.FC = () => {
               <span>Pass: <strong className="text-slate-900 font-semibold">admin123</strong></span>
               <span className="text-indigo-600 font-sans font-medium text-[11px] underline">Auto-fill</span>
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Security / System Footer info */}
