@@ -11,7 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = createApp();
-const PORT = 3000;
+const PORT = 3006;
 
 // Production static file serving for Vite built assets
 const distPath = path.resolve(__dirname, 'dist');
