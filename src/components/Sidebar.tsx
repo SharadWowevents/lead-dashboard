@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Filter, Search } from 'lucide-react';
+import { Layers, Filter, Search, Globe } from 'lucide-react'; // Added Globe icon back
 
 interface SidebarProps {
   sites: string[];
@@ -17,6 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedSite,
   onSelectSite,
   siteCounts,
+  totalCount, // Now using totalCount for the All Projects badge
   isMobileOpen,
   onCloseMobile,
 }) => {
@@ -66,8 +67,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Individual Projects List (All Projects option removed) */}
           <nav className="space-y-1 max-h-[calc(100vh-240px)] overflow-y-auto pr-1">
+            {/* --- RESTORED ALL PROJECTS BUTTON --- */}
+            <button
+              type="button"
+              onClick={() => {
+                onSelectSite(null);
+                onCloseMobile();
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                selectedSite === null
+                  ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 truncate">
+                <Globe className={`w-4 h-4 ${selectedSite === null ? 'text-white' : 'text-slate-400'}`} />
+                <span className="truncate">All Projects</span>
+              </div>
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-medium ${
+                  selectedSite === null
+                    ? 'bg-indigo-800 text-white'
+                    : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                {totalCount}
+              </span>
+            </button>
+            {/* ------------------------------------ */}
+
+            {/* Individual Projects List */}
             {filteredSites.map((site) => {
               const isSelected = selectedSite === site;
               const count = siteCounts[site] || 0;
@@ -127,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </div>
         <p className="text-[11px] text-slate-400 truncate">
-          Port 3007 Active
+          Port 3006 Active
         </p>
       </div>
     </div>

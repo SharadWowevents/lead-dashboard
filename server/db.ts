@@ -11,7 +11,9 @@ connection.on('connected', () => console.log(`[DB] Connected to MongoDB`));
 connection.on('error', (err) => console.error('[DB] Connection error:', err));
 export const isPrismaConnected = true;
 
-// Schemas
+// ==========================================
+// 2. SCHEMAS
+// ==========================================
 const adminUserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
@@ -24,27 +26,41 @@ const leadDataSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 
+// New Analysis Schema for BO Score
+const analysisSchema = new mongoose.Schema({
+  // ref: 'LeadData' tells Mongoose to look inside the users collection for this ID
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadData' }, 
+  name: String, // e.g., "Analysis on 9 Sept 2026, 3:44 pm"
+  scores: mongoose.Schema.Types.Mixed,
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date }
+}, { collection: 'analyses' }); // Update 'analyses' if your actual collection name is different
+
 
 // ==========================================
-// 2. YOUR DATA SOURCES CONFIGURATION
+// 3. YOUR DATA SOURCES CONFIGURATION
 // ==========================================
 
-// A. Local MongoDB Setup (For your 1 local project)
-const adminDb = connection.useDb('boscore');
-const AdminUser = adminDb.model('AdminUser', adminUserSchema, 'admin_users'); 
+// A. Local MongoDB Setup (For your local projects)
+const boscoreDb = connection.useDb('boscore');
+
+// Register Models
+const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users'); 
+const LeadDataModel = boscoreDb.model('LeadData', leadDataSchema, 'users');
+const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
 
 const localProjects = [
   {
     siteName: 'BO Score',
-    model: connection.useDb('boscore').model('LeadData', leadDataSchema, 'users')
+    model: LeadDataModel
   }
 ];
 
-// B. External APIs Setup (For your 2 external projects)
+// B. External APIs Setup (For your external projects)
 const externalApis = [
   {
     siteName: '80-20 Book',
-    prefix: '8020_', // Prefix added to ID so the backend knows which API to delete from
+    prefix: '8020_',
     fetchUrl: 'https://api-80-20-book.wowos.in/api/leads',
     deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
     headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
@@ -52,15 +68,15 @@ const externalApis = [
   {
     siteName: 'Project 3 (Second API)', // Change this to your second project's name
     prefix: 'API2_',
-    fetchUrl: 'https://api-YOUR-SECOND-API.com/api/leads', // REPLACE THIS
-    deleteUrl: (id: string) => `https://api-YOUR-SECOND-API.com/api/leads/${id}`, // REPLACE THIS
-    headers: { 'x-api-key': 'YOUR_SECOND_API_KEY_HERE' } // REPLACE THIS
+    fetchUrl: 'https://api-YOUR-SECOND-API.com/api/leads', 
+    deleteUrl: (id: string) => `https://api-YOUR-SECOND-API.com/api/leads/${id}`, 
+    headers: { 'x-api-key': 'YOUR_SECOND_API_KEY_HERE' } 
   }
 ];
 
 
 // ==========================================
-// 3. DATABASE ABSTRACTION LOGIC
+// 4. DATABASE ABSTRACTION LOGIC
 // ==========================================
 
 const formatDoc = (doc: any, siteName: string) => {
@@ -86,7 +102,6 @@ export const db = {
 
   // --- MULTI-SOURCE LEADS LOGIC ---
   leadData: {
-    // CREATE (Only applies to local MongoDB)
     create: async ({ data }: { data: any }) => {
       const targetProject = localProjects.find(p => p.siteName === data.siteName);
       if (!targetProject) throw new Error(`Project "${data.siteName}" is not local.`);
@@ -94,7 +109,6 @@ export const db = {
       return formatDoc(newDoc, targetProject.siteName);
     },
 
-    // READ (Fetches from Local DB + Both APIs)
     findMany: async ({ where, orderBy }: { where?: { siteName?: string }; orderBy?: any } = {}) => {
       let allLeads: any[] = [];
       
@@ -116,7 +130,7 @@ export const db = {
             const leadsArray = Array.isArray(rawData) ? rawData : (rawData.data || []);
             
             const formattedExt = leadsArray.map((lead: any) => ({
-              id: `${api.prefix}${lead.id || lead._id}`, // Attach prefix
+              id: `${api.prefix}${lead.id || lead._id}`,
               siteName: api.siteName,
               name: lead.name || 'Unknown',
               email: lead.email || 'N/A',
@@ -140,7 +154,6 @@ export const db = {
       return allLeads;
     },
 
-    // DELETE (Routes to Mongo OR correct API based on ID prefix)
     delete: async ({ where }: { where: { id: string } }) => {
       // 1. Check if it's an external API Lead
       for (const api of externalApis) {
@@ -152,7 +165,7 @@ export const db = {
           } catch (err) {
             console.error(`[DB] Failed to delete from ${api.siteName}:`, err);
           }
-          return null; // Stop here since we found the prefix match
+          return null; 
         }
       }
 
@@ -164,7 +177,6 @@ export const db = {
       return null;
     },
 
-    // SITES LIST (For the sidebar)
     getUniqueSites: async (): Promise<string[]> => {
       const sites = [
         ...localProjects.map(p => p.siteName),
@@ -173,6 +185,33 @@ export const db = {
       return sites.sort();
     },
   },
+
+  // --- NEW: ANALYSIS DATA LOGIC (For BO Score) ---
+  analysisData: {
+    findMany: async () => {
+      try {
+        // Fetch analyses and automatically merge Name and Email from the LeadData (users) collection
+        const docs = await AnalysisModel.find()
+          .populate({ path: 'userId', select: 'name email' })
+          .sort({ createdAt: -1 });
+
+        return docs.map(doc => {
+          const obj = doc.toObject();
+          return {
+            id: obj._id.toString(),
+            name: obj.userId?.name || 'Unknown User',
+            email: obj.userId?.email || 'N/A',
+            analysisName: obj.name || 'Unknown Analysis', // The formatted date/time string from DB
+            scores: obj.scores,
+            createdAt: obj.createdAt || new Date()
+          };
+        });
+      } catch (err) {
+        console.error('[DB] Failed to fetch analyses:', err);
+        return [];
+      }
+    }
+  }
 };
 
 // Seed admin
@@ -180,5 +219,6 @@ AdminUser.countDocuments().then(async (count) => {
   if (count === 0) {
     const passwordHash = await bcrypt.hash('admin123', 10);
     await AdminUser.create({ username: 'admin', passwordHash });
+    console.log('[DB] Seeded default admin user.');
   }
 });

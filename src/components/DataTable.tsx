@@ -16,10 +16,10 @@ import {
   Tag,
   Inbox,
   RefreshCw,
+  X,
 } from 'lucide-react';
 
 interface ExtendedLeadData extends LeadData {
-  password?: string;
   [key: string]: any;
 }
 
@@ -47,18 +47,28 @@ export const DataTable: React.FC<DataTableProps> = ({
   const [pageSize, setPageSize] = useState(10);
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | number | null>(null);
+  
+  // Date Range State
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  
+  // Get today's local date formatted as YYYY-MM-DD to use as the max allowed date
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
 
-  // Dynamic Column Detection: Only display Mobile or Password if data exists in this table
+  // Dynamic Column Detection: Only display Mobile if data exists in this table
   const hasMobile = useMemo(() => {
     return leads.some(
       (lead) => lead.mobile && lead.mobile !== 'N/A' && lead.mobile.trim() !== ''
     );
   }, [leads]);
 
- 
-
-  const colSpanCount =
-    4 + (onDeleteLead ? 1 : 0) + (hasMobile ? 1 : 0);
+  const colSpanCount = 4 + (onDeleteLead ? 1 : 0) + (hasMobile ? 1 : 0);
 
   // Sorting handler
   const handleSort = (key: SortKey) => {
@@ -86,6 +96,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   const filteredAndSortedLeads = useMemo(() => {
     let result = [...leads];
 
+    // 1. Search Filter
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
       result = result.filter(
@@ -97,6 +108,19 @@ export const DataTable: React.FC<DataTableProps> = ({
       );
     }
 
+    // 2. Date Range Filter
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      result = result.filter(lead => new Date(lead.createdAt).getTime() >= start.getTime());
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      result = result.filter(lead => new Date(lead.createdAt).getTime() <= end.getTime());
+    }
+
+    // 3. Sorting
     result.sort((a, b) => {
       const fieldA = a[sortConfig.key];
       const fieldB = b[sortConfig.key];
@@ -119,7 +143,7 @@ export const DataTable: React.FC<DataTableProps> = ({
     });
 
     return result;
-  }, [leads, searchTerm, sortConfig]);
+  }, [leads, searchTerm, startDate, endDate, sortConfig]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredAndSortedLeads.length / pageSize) || 1;
@@ -199,13 +223,45 @@ export const DataTable: React.FC<DataTableProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-auto">
+          
+          {/* Date Range Pickers */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-xs">
+            <input
+              type="date"
+              value={startDate}
+              max={todayStr} // <--- ADDED HERE
+              onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+              className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer"
+              title="Start Date"
+            />
+            <span className="text-slate-400 text-xs font-medium">to</span>
+            <input
+              type="date"
+              value={endDate}
+              max={todayStr} // <--- ADDED HERE
+              onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+              className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer"
+              title="End Date"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => { setStartDate(''); setEndDate(''); setCurrentPage(1); }}
+                className="ml-1 p-0.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                title="Clear Dates"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
           {onRefresh && (
             <button
               type="button"
               onClick={onRefresh}
               disabled={isLoading}
-              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition cursor-pointer"
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 transition cursor-pointer shadow-xs"
               title="Refresh Data"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-indigo-600' : ''}`} />
@@ -283,9 +339,6 @@ export const DataTable: React.FC<DataTableProps> = ({
                   )}
                 </div>
               </th>
-
-              {/* Conditional Password Column */}
-              
 
               {/* Conditional Mobile Column */}
               {hasMobile && (
@@ -393,8 +446,6 @@ export const DataTable: React.FC<DataTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Password */}
-                    
                     {/* Mobile */}
                     {hasMobile && (
                       <td className="py-3 px-4">
@@ -474,6 +525,7 @@ export const DataTable: React.FC<DataTableProps> = ({
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
 

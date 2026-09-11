@@ -7,6 +7,8 @@ import { AuthRequest } from '../middleware/auth.ts';
  * POST /api/ingest or POST /api/data/ingest
  * Public / Open endpoint for integration
  */
+
+
 export async function ingestLead(req: Request, res: Response): Promise<void> {
   try {
     const { siteName, name, email, mobile } = req.body;
@@ -65,6 +67,8 @@ export async function ingestLead(req: Request, res: Response): Promise<void> {
     });
   }
 }
+
+
 
 /**
  * Controller to fetch leads for dashboard
@@ -156,5 +160,15 @@ export async function deleteLead(req: AuthRequest, res: Response): Promise<void>
       message: 'Failed to delete lead',
       error: error.message,
     });
+  }
+}
+
+export async function getAnalyses(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const analyses = await db.analysisData.findMany();
+    res.json({ success: true, data: analyses });
+  } catch (error: any) {
+    console.error('Error fetching analyses:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch analyses' });
   }
 }

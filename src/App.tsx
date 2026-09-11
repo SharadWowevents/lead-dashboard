@@ -7,7 +7,8 @@ import { DataTable } from './components/DataTable.tsx';
 import { ChangePasswordModal } from './components/ChangePasswordModal.tsx';
 import { IngestTesterModal } from './components/IngestTesterModal.tsx';
 import { LeadData, LeadsApiResponse } from './types/index.ts';
-import { Users, Globe2, Sparkles, AlertTriangle } from 'lucide-react';
+import { Users, Globe2, Sparkles, AlertTriangle, LineChart } from 'lucide-react';
+import { AnalysisTable } from './components/AnalysisTable.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
@@ -15,11 +16,13 @@ function DashboardContent() {
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [analyses, setAnalyses] = useState<any[]>([]); // <-- Add this state
 
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isIngestTesterOpen, setIsIngestTesterOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
 
   // Fetch all leads across databases and external APIs at once
   const fetchLeads = useCallback(async () => {
@@ -28,23 +31,26 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const response = await fetch('/api/data', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Fetch both APIs simultaneously
+      const [leadsRes, analysesRes] = await Promise.all([
+        fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
 
-      if (response.status === 401 || response.status === 403) {
+      if (leadsRes.status === 401 || leadsRes.status === 403) {
         logout();
         return;
       }
 
-      const data: LeadsApiResponse = await response.json();
+      const leadsData = await leadsRes.json();
+      if (leadsRes.ok && leadsData.success) {
+        setAllLeads(leadsData.data || []);
+      }
 
-      if (response.ok && data.success) {
-        setAllLeads(data.data || []);
-      } else {
-        setErrorNotice(data.filter || 'Failed to fetch lead data');
+      // Set the analysis data
+      if (analysesRes.ok) {
+        const aData = await analysesRes.json();
+        setAnalyses(aData.data || []);
       }
     } catch (err: any) {
       console.error('Fetch leads error:', err);
@@ -191,7 +197,7 @@ function DashboardContent() {
           </div>
 
           {/* Active Filter Banner */}
-          {selectedSite && (
+          {/* {selectedSite && (
             <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between text-xs text-indigo-950">
               <div className="flex items-center gap-2">
                 <span>Displaying table for:</span>
@@ -207,7 +213,7 @@ function DashboardContent() {
                 Show All Project Tables
               </button>
             </div>
-          )}
+          )} */}
 
           {/* Grouped Tables: Each project has its own separate DataTable */}
           <div className="space-y-10">
@@ -233,6 +239,23 @@ function DashboardContent() {
                     onDeleteLead={handleDeleteLead}
                     onRefresh={fetchLeads}
                   />
+                {/* === ADD THIS BLOCK: Appears only for BO Score === */}
+                  {site === 'BO Score' && analyses.length > 0 && (
+                    <div className="mt-8 flex flex-col gap-3">
+                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <LineChart className="w-5 h-5 text-indigo-500" />
+                            BO Score: Completed Analyses
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                            {analyses.length} records
+                          </span>
+                       </div>
+                       <AnalysisTable analyses={analyses} isLoading={isLoading} />
+                    </div>
+                  )}
+                  {/* ================================================= */}
+
                 </div>
               );
             })}
