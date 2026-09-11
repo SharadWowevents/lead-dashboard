@@ -65,13 +65,13 @@ const externalApis = [
     deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
     headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
   },
-  {
-    siteName: 'Project 3 (Second API)', // Change this to your second project's name
-    prefix: 'API2_',
-    fetchUrl: 'https://api-YOUR-SECOND-API.com/api/leads', 
-    deleteUrl: (id: string) => `https://api-YOUR-SECOND-API.com/api/leads/${id}`, 
-    headers: { 'x-api-key': 'YOUR_SECOND_API_KEY_HERE' } 
-  }
+  // {
+  //   siteName: 'Project 3 (Second API)', // Change this to your second project's name
+  //   prefix: 'API2_',
+  //   fetchUrl: 'https://api-YOUR-SECOND-API.com/api/leads', 
+  //   deleteUrl: (id: string) => `https://api-YOUR-SECOND-API.com/api/leads/${id}`, 
+  //   headers: { 'x-api-key': 'YOUR_SECOND_API_KEY_HERE' } 
+  // }
 ];
 
 
