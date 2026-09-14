@@ -26,37 +26,57 @@ const leadDataSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 
-// New Analysis Schema for BO Score
 const analysisSchema = new mongoose.Schema({
-  // ref: 'LeadData' tells Mongoose to look inside the users collection for this ID
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadData' }, 
-  name: String, // e.g., "Analysis on 9 Sept 2026, 3:44 pm"
+  name: String,
   scores: mongoose.Schema.Types.Mixed,
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date }
-}, { collection: 'analyses' }); // Update 'analyses' if your actual collection name is different
+}, { collection: 'analyses' });
 
+// Schema for 101 Business Prompts
+const promptSchema = new mongoose.Schema({
+  number: { type: Number, required: true, unique: true },
+  category: { 
+    type: String, 
+    required: true,
+    enum: ['Marketing', 'Sales', 'Delivery', 'Finance', 'People', 'AI'] 
+  },
+  title: { type: String, required: true },
+  prompt: { type: String, required: true }
+}, { timestamps: true });
 
 // ==========================================
 // 3. YOUR DATA SOURCES CONFIGURATION
 // ==========================================
 
-// A. Local MongoDB Setup (For your local projects)
+// A. Local Databases
 const boscoreDb = connection.useDb('boscore');
+// Database where your 101 Prompts & Users reside (defaults to 'wowos_prompts')
+const promptDbName = process.env.PROMPT_DB_NAME || 'wowos_prompts';
+const promptDb = connection.useDb(promptDbName);
 
 // Register Models
 const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users'); 
 const LeadDataModel = boscoreDb.model('LeadData', leadDataSchema, 'users');
 const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
 
+// Register 101 Business Prompts Models
+const PromptLeadModel = promptDb.model('PromptUser', leadDataSchema, 'users');
+const PromptModel = promptDb.model('Prompt', promptSchema, 'prompts');
+
 const localProjects = [
   {
     siteName: 'BO Score',
     model: LeadDataModel
+  },
+  {
+    siteName: '101 Business Prompts',
+    model: PromptLeadModel
   }
 ];
 
-// B. External APIs Setup (For your external projects)
+// B. External APIs Setup
 const externalApis = [
   {
     siteName: '80-20 Book',
@@ -64,16 +84,8 @@ const externalApis = [
     fetchUrl: 'https://api-80-20-book.wowos.in/api/leads',
     deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
     headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
-  },
-  // {
-  //   siteName: 'Project 3 (Second API)', // Change this to your second project's name
-  //   prefix: 'API2_',
-  //   fetchUrl: 'https://api-YOUR-SECOND-API.com/api/leads', 
-  //   deleteUrl: (id: string) => `https://api-YOUR-SECOND-API.com/api/leads/${id}`, 
-  //   headers: { 'x-api-key': 'YOUR_SECOND_API_KEY_HERE' } 
-  // }
+  }
 ];
-
 
 // ==========================================
 // 4. DATABASE ABSTRACTION LOGIC
@@ -112,7 +124,7 @@ export const db = {
     findMany: async ({ where, orderBy }: { where?: { siteName?: string }; orderBy?: any } = {}) => {
       let allLeads: any[] = [];
       
-      // 1. Fetch from Local MongoDB
+      // 1. Fetch from Local MongoDB databases
       for (const project of localProjects) {
         if (where?.siteName && where.siteName !== project.siteName) continue;
         const docs = await project.model.find({});
@@ -144,7 +156,7 @@ export const db = {
         }
       }
       
-      // 3. Sort all combined data by date
+      // 3. Sort by date
       allLeads.sort((a, b) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
@@ -155,7 +167,6 @@ export const db = {
     },
 
     delete: async ({ where }: { where: { id: string } }) => {
-      // 1. Check if it's an external API Lead
       for (const api of externalApis) {
         if (where.id.startsWith(api.prefix)) {
           const realId = where.id.replace(api.prefix, '');
@@ -169,7 +180,6 @@ export const db = {
         }
       }
 
-      // 2. If no prefix matched, it's a Local MongoDB Lead
       for (const project of localProjects) {
         const deleted = await project.model.findByIdAndDelete(where.id);
         if (deleted) return formatDoc(deleted, project.siteName);
@@ -186,11 +196,10 @@ export const db = {
     },
   },
 
-  // --- NEW: ANALYSIS DATA LOGIC (For BO Score) ---
+  // --- ANALYSIS DATA LOGIC (For BO Score) ---
   analysisData: {
     findMany: async () => {
       try {
-        // Fetch analyses and automatically merge Name and Email from the LeadData (users) collection
         const docs = await AnalysisModel.find()
           .populate({ path: 'userId', select: 'name email' })
           .sort({ createdAt: -1 });
@@ -201,7 +210,7 @@ export const db = {
             id: obj._id.toString(),
             name: obj.userId?.name || 'Unknown User',
             email: obj.userId?.email || 'N/A',
-            analysisName: obj.name || 'Unknown Analysis', // The formatted date/time string from DB
+            analysisName: obj.name || 'Unknown Analysis',
             scores: obj.scores,
             createdAt: obj.createdAt || new Date()
           };
@@ -210,6 +219,63 @@ export const db = {
         console.error('[DB] Failed to fetch analyses:', err);
         return [];
       }
+    }
+  },
+
+  // --- PROMPTS CRUD LOGIC (For 101 Business Prompts) ---
+  prompt: {
+    findMany: async ({ category, search }: { category?: string; search?: string } = {}) => {
+      const filter: any = {};
+      if (category && category.toLowerCase() !== 'all') {
+        filter.category = new RegExp(`^${category}$`, 'i');
+      }
+      if (search && search.trim()) {
+        const q = search.trim();
+        filter.$or = [
+          { title: { $regex: q, $options: 'i' } },
+          { prompt: { $regex: q, $options: 'i' } }
+        ];
+      }
+      const docs = await PromptModel.find(filter).sort({ number: 1 });
+      return docs.map(doc => {
+        const obj = doc.toObject();
+        return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
+      });
+    },
+
+    findById: async (id: string) => {
+      const doc = await PromptModel.findById(id);
+      if (!doc) return null;
+      const obj = doc.toObject();
+      return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
+    },
+
+    create: async (data: { number?: number; category: string; title: string; prompt: string }) => {
+      let promptNumber = data.number;
+      if (!promptNumber) {
+        const last = await PromptModel.findOne().sort({ number: -1 });
+        promptNumber = last && last.number ? last.number + 1 : 1;
+      }
+
+      const newDoc = await PromptModel.create({
+        ...data,
+        number: promptNumber
+      });
+      const obj = newDoc.toObject();
+      return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
+    },
+
+    update: async (id: string, data: { number?: number; category?: string; title?: string; prompt?: string }) => {
+      const updated = await PromptModel.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+      if (!updated) return null;
+      const obj = updated.toObject();
+      return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
+    },
+
+    delete: async (id: string) => {
+      const deleted = await PromptModel.findByIdAndDelete(id);
+      if (!deleted) return null;
+      return { id };
     }
   }
 };
