@@ -84,6 +84,14 @@ const externalApis = [
     fetchUrl: 'https://api-80-20-book.wowos.in/api/leads',
     deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
     headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
+  },
+  // --- NEW: Resource Allocator API ---
+  {
+    siteName: 'Resource Allocator',
+    prefix: 'RES_',
+    fetchUrl: 'https://resourcesapi.wowos.in/api/leads', // Update to public URL if not hosted on the same server
+    deleteUrl: (email: string) => `https://resourcesapi.wowos.in/api/leads/${email}`,
+    headers: {} 
   }
 ];
 
@@ -142,7 +150,8 @@ export const db = {
             const leadsArray = Array.isArray(rawData) ? rawData : (rawData.data || []);
             
             const formattedExt = leadsArray.map((lead: any) => ({
-              id: `${api.prefix}${lead.id || lead._id}`,
+              // Fallback to email if `id` or `_id` doesn't exist (required for Resource Allocator)
+              id: `${api.prefix}${lead.id || lead._id || lead.email}`,
               siteName: api.siteName,
               name: lead.name || 'Unknown',
               email: lead.email || 'N/A',
@@ -201,7 +210,7 @@ export const db = {
     findMany: async () => {
       try {
         const docs = await AnalysisModel.find()
-          .populate({ path: 'userId', select: 'name email' })
+          .populate({ path: 'userId', select: 'name email mobile' }) // Ensured mobile is requested
           .sort({ createdAt: -1 });
 
         return docs.map(doc => {
@@ -210,6 +219,7 @@ export const db = {
             id: obj._id.toString(),
             name: obj.userId?.name || 'Unknown User',
             email: obj.userId?.email || 'N/A',
+            mobile: obj.userId?.mobile || 'N/A', // Changed phone to mobile for correct mapping
             analysisName: obj.name || 'Unknown Analysis',
             scores: obj.scores,
             createdAt: obj.createdAt || new Date()
@@ -217,6 +227,25 @@ export const db = {
         });
       } catch (err) {
         console.error('[DB] Failed to fetch analyses:', err);
+        return [];
+      }
+    }
+  },
+
+  // --- NEW: RESOURCE LOGS LOGIC ---
+  resourceLogs: {
+    findMany: async () => {
+      try {
+        // IMPORTANT: Change localhost:5000 to your live URL when deployed!
+        const res = await fetch('https://resourcesapi.wowos.in/api/logs');
+        if (res.ok) {
+          const rawData = await res.json();
+          // The API returns the array directly
+          return Array.isArray(rawData) ? rawData : [];
+        }
+        return [];
+      } catch (err) {
+        console.error('[DB] Failed to fetch resource logs:', err);
         return [];
       }
     }

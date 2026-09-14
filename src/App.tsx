@@ -7,18 +7,22 @@ import { DataTable } from './components/DataTable.tsx';
 import { ChangePasswordModal } from './components/ChangePasswordModal.tsx';
 import { IngestTesterModal } from './components/IngestTesterModal.tsx';
 import { LeadData } from './types/index.ts';
-import { Users, Globe2, Sparkles, AlertTriangle, LineChart } from 'lucide-react';
+import { Users, Globe2, Sparkles, AlertTriangle, LineChart, FileText } from 'lucide-react';
 import { AnalysisTable } from './components/AnalysisTable.tsx';
-import { PromptManager } from './components/PromptManager.tsx'; // <-- Import new component
+import { PromptManager } from './components/PromptManager.tsx';
+import { ResourceLogsTable } from './components/ResourceLogsTable.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
-  const [activeView, setActiveView] = useState<'leads' | 'prompts'>('leads'); // <-- Add view state
+  const [activeView, setActiveView] = useState<'leads' | 'prompts'>('leads');
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
+  
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
+  const [analyses, setAnalyses] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]); // Added logs state
+  
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
-  const [analyses, setAnalyses] = useState<any[]>([]);
 
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -31,9 +35,10 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const [leadsRes, analysesRes] = await Promise.all([
+      const [leadsRes, analysesRes, logsRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (leadsRes.status === 401 || leadsRes.status === 403) {
@@ -41,15 +46,24 @@ function DashboardContent() {
         return;
       }
 
+      // Handle Leads Data
       const leadsData = await leadsRes.json();
       if (leadsRes.ok && leadsData.success) {
         setAllLeads(leadsData.data || []);
       }
 
+      // Handle Analyses Data
       if (analysesRes.ok) {
         const aData = await analysesRes.json();
         setAnalyses(aData.data || []);
       }
+
+      // Handle Logs Data
+      if (logsRes.ok) {
+        const lData = await logsRes.json();
+        setLogs(lData.data || []);
+      }
+      
     } catch (err: any) {
       console.error('Fetch leads error:', err);
       setErrorNotice('Network error: Unable to contact backend API');
@@ -219,6 +233,7 @@ function DashboardContent() {
                         onRefresh={fetchLeads}
                       />
                       
+                      {/* Sub-table: BO Score Analyses */}
                       {site === 'BO Score' && analyses.length > 0 && (
                         <div className="mt-8 flex flex-col gap-3">
                            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -231,6 +246,22 @@ function DashboardContent() {
                               </span>
                            </div>
                            <AnalysisTable analyses={analyses} isLoading={isLoading} />
+                        </div>
+                      )}
+
+                      {/* Sub-table: Resource Allocator Logs */}
+                      {site === 'Resource Allocator' && logs.length > 0 && (
+                        <div className="mt-8 flex flex-col gap-3">
+                           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <FileText className="w-5 h-5 text-indigo-500" />
+                                Resource Allocator: Download Logs
+                              </h3>
+                              <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                                {logs.length} records
+                              </span>
+                           </div>
+                           <ResourceLogsTable logs={logs} isLoading={isLoading} />
                         </div>
                       )}
                     </div>

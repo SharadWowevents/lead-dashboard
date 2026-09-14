@@ -172,3 +172,13 @@ export async function getAnalyses(req: AuthRequest, res: Response): Promise<void
     res.status(500).json({ success: false, message: 'Failed to fetch analyses' });
   }
 }
+
+export async function getLogs(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const logs = await db.resourceLogs.findMany();
+    res.json({ success: true, data: logs });
+  } catch (error: any) {
+    console.error('Error fetching logs:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch logs' });
+  }
+}

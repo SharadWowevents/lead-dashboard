@@ -51,24 +51,9 @@ export const DataTable: React.FC<DataTableProps> = ({
   // Date Range State
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  
-  // Get today's local date formatted as YYYY-MM-DD to use as the max allowed date
-  const todayStr = useMemo(() => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }, []);
 
-  // Dynamic Column Detection: Only display Mobile if data exists in this table
-  const hasMobile = useMemo(() => {
-    return leads.some(
-      (lead) => lead.mobile && lead.mobile !== 'N/A' && lead.mobile.trim() !== ''
-    );
-  }, [leads]);
-
-  const colSpanCount = 4 + (onDeleteLead ? 1 : 0) + (hasMobile ? 1 : 0);
+  // 6 base columns (S.No, Project, Name, Email, Phone, Submitted) + 1 Action column
+  const colSpanCount = 6 + (onDeleteLead ? 1 : 0);
 
   // Sorting handler
   const handleSort = (key: SortKey) => {
@@ -197,6 +182,15 @@ export const DataTable: React.FC<DataTableProps> = ({
     return palettes[index];
   };
 
+  // Get today's local date for max date in calendar
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
       {/* Table Toolbar */}
@@ -230,7 +224,7 @@ export const DataTable: React.FC<DataTableProps> = ({
             <input
               type="date"
               value={startDate}
-              max={todayStr} // <--- ADDED HERE
+              max={todayStr}
               onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
               className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer"
               title="Start Date"
@@ -239,7 +233,7 @@ export const DataTable: React.FC<DataTableProps> = ({
             <input
               type="date"
               value={endDate}
-              max={todayStr} // <--- ADDED HERE
+              max={todayStr}
               onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
               className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer"
               title="End Date"
@@ -340,23 +334,21 @@ export const DataTable: React.FC<DataTableProps> = ({
                 </div>
               </th>
 
-              {/* Conditional Mobile Column */}
-              {hasMobile && (
-                <th
-                  className="py-3 px-4 cursor-pointer select-none hover:bg-slate-100 transition"
-                  onClick={() => handleSort('mobile')}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Mobile</span>
-                    {sortConfig.key === 'mobile' ? (
-                      sortConfig.direction === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-slate-900" /> : <ArrowDown className="w-3.5 h-3.5 text-slate-900" />
-                    ) : (
-                      <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-                    )}
-                  </div>
-                </th>
-              )}
+              {/* Phone Column - Always rendered now */}
+              <th
+                className="py-3 px-4 cursor-pointer select-none hover:bg-slate-100 transition"
+                onClick={() => handleSort('mobile')}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Phone</span>
+                  {sortConfig.key === 'mobile' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-slate-900" /> : <ArrowDown className="w-3.5 h-3.5 text-slate-900" />
+                  ) : (
+                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </div>
+              </th>
 
               {/* Submitted At */}
               <th
@@ -446,24 +438,22 @@ export const DataTable: React.FC<DataTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Mobile */}
-                    {hasMobile && (
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5 group/phone">
-                          <span className="font-mono text-slate-700">{lead.mobile || '-'}</span>
-                          {lead.mobile && lead.mobile !== 'N/A' && (
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(lead.mobile!, 'phone')}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 rounded transition cursor-pointer"
-                              title="Copy Mobile"
-                            >
-                              {isPhoneCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                    {/* Phone - Always rendered now */}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5 group/phone">
+                        <span className="font-mono text-slate-700">{lead.mobile || '-'}</span>
+                        {lead.mobile && lead.mobile !== 'N/A' && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(lead.mobile!, 'phone')}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 rounded transition cursor-pointer"
+                            title="Copy Mobile"
+                          >
+                            {isPhoneCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        )}
+                      </div>
+                    </td>
 
                     {/* Date */}
                     <td className="py-3 px-4 text-slate-600">
