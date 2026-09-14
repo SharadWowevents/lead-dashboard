@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Filter, Search, Globe } from 'lucide-react'; // Added Globe icon back
+import { Layers, Filter, Search, Globe, LibraryBig } from 'lucide-react';
 
 interface SidebarProps {
   sites: string[];
@@ -10,6 +10,8 @@ interface SidebarProps {
   onOpenIngestTester: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  activeView: 'leads' | 'prompts';
+  onSetActiveView: (view: 'leads' | 'prompts') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -17,15 +19,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedSite,
   onSelectSite,
   siteCounts,
-  totalCount, // Now using totalCount for the All Projects badge
+  totalCount,
   isMobileOpen,
   onCloseMobile,
+  activeView,
+  onSetActiveView,
 }) => {
   const [siteSearch, setSiteSearch] = useState('');
 
   const filteredSites = sites.filter((s) =>
     s.toLowerCase().includes(siteSearch.toLowerCase())
   );
+
+  const handleSelectProject = (site: string | null) => {
+    onSetActiveView('leads');
+    onSelectSite(site);
+    onCloseMobile();
+  };
 
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between p-4 bg-slate-900 text-slate-200">
@@ -67,27 +77,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          <nav className="space-y-1 max-h-[calc(100vh-240px)] overflow-y-auto pr-1">
-            {/* --- RESTORED ALL PROJECTS BUTTON --- */}
+          <nav className="space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
             <button
               type="button"
-              onClick={() => {
-                onSelectSite(null);
-                onCloseMobile();
-              }}
+              onClick={() => handleSelectProject(null)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
-                selectedSite === null
+                activeView === 'leads' && selectedSite === null
                   ? 'bg-indigo-600 text-white shadow-sm font-semibold'
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5 truncate">
-                <Globe className={`w-4 h-4 ${selectedSite === null ? 'text-white' : 'text-slate-400'}`} />
+                <Globe className={`w-4 h-4 ${activeView === 'leads' && selectedSite === null ? 'text-white' : 'text-slate-400'}`} />
                 <span className="truncate">All Projects</span>
               </div>
               <span
                 className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-medium ${
-                  selectedSite === null
+                  activeView === 'leads' && selectedSite === null
                     ? 'bg-indigo-800 text-white'
                     : 'bg-slate-800 text-slate-300'
                 }`}
@@ -95,22 +101,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {totalCount}
               </span>
             </button>
-            {/* ------------------------------------ */}
 
-            {/* Individual Projects List */}
             {filteredSites.map((site) => {
-              const isSelected = selectedSite === site;
+              const isSelected = activeView === 'leads' && selectedSite === site;
               const count = siteCounts[site] || 0;
 
               return (
                 <button
                   key={site}
                   type="button"
-                  onClick={() => {
-                    // Toggle selection: click again to clear and show all tables
-                    onSelectSite(isSelected ? null : site);
-                    onCloseMobile();
-                  }}
+                  onClick={() => handleSelectProject(isSelected ? null : site)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                     isSelected
                       ? 'bg-indigo-600 text-white shadow-sm font-semibold'
@@ -137,28 +137,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               );
             })}
-
-            {filteredSites.length === 0 && (
-              <div className="px-3 py-4 text-center text-xs text-slate-400">
-                No matching projects
-              </div>
-            )}
           </nav>
         </div>
-      </div>
 
-      {/* Footer Info */}
-      <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs">
-        <div className="flex items-center justify-between text-slate-300 font-medium mb-1">
-          <span className="text-[11px] text-slate-400 uppercase tracking-wider">Status</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Connected
-          </span>
+        {/* System Management Section */}
+        <div className="space-y-2 pt-4 border-t border-slate-800">
+           <div className="flex items-center px-2 text-xs font-semibold text-slate-400 tracking-wider uppercase mb-2">
+            System Management
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onSetActiveView('prompts');
+              onCloseMobile();
+            }}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+              activeView === 'prompts'
+                ? 'bg-amber-500/20 text-amber-400 shadow-sm font-semibold border border-amber-500/30'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent'
+            }`}
+          >
+             <LibraryBig className={`w-4 h-4 ${activeView === 'prompts' ? 'text-amber-400' : 'text-slate-400'}`} />
+             <span>Manage 101 Prompts</span>
+          </button>
         </div>
-        <p className="text-[11px] text-slate-400 truncate">
-          Port 3006 Active
-        </p>
       </div>
     </div>
   );

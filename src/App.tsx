@@ -6,32 +6,31 @@ import { Header } from './components/Header.tsx';
 import { DataTable } from './components/DataTable.tsx';
 import { ChangePasswordModal } from './components/ChangePasswordModal.tsx';
 import { IngestTesterModal } from './components/IngestTesterModal.tsx';
-import { LeadData, LeadsApiResponse } from './types/index.ts';
+import { LeadData } from './types/index.ts';
 import { Users, Globe2, Sparkles, AlertTriangle, LineChart } from 'lucide-react';
 import { AnalysisTable } from './components/AnalysisTable.tsx';
+import { PromptManager } from './components/PromptManager.tsx'; // <-- Import new component
 
 function DashboardContent() {
   const { token, logout } = useAuth();
+  const [activeView, setActiveView] = useState<'leads' | 'prompts'>('leads'); // <-- Add view state
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
-  const [analyses, setAnalyses] = useState<any[]>([]); // <-- Add this state
+  const [analyses, setAnalyses] = useState<any[]>([]);
 
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isIngestTesterOpen, setIsIngestTesterOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-
-  // Fetch all leads across databases and external APIs at once
   const fetchLeads = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
     setErrorNotice(null);
 
     try {
-      // Fetch both APIs simultaneously
       const [leadsRes, analysesRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } })
@@ -47,7 +46,6 @@ function DashboardContent() {
         setAllLeads(leadsData.data || []);
       }
 
-      // Set the analysis data
       if (analysesRes.ok) {
         const aData = await analysesRes.json();
         setAnalyses(aData.data || []);
@@ -64,7 +62,6 @@ function DashboardContent() {
     fetchLeads();
   }, [fetchLeads]);
 
-  // Compute metrics and unique sites
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
     const sitesSet = new Set<string>();
@@ -98,15 +95,12 @@ function DashboardContent() {
     };
   }, [allLeads]);
 
-  // Delete lead (accepts string or number IDs)
   const handleDeleteLead = async (id: string | number) => {
     if (!token) return;
     try {
       const response = await fetch(`/api/data/${id}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.ok) {
@@ -121,25 +115,25 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar Navigation */}
       <Sidebar
         sites={uniqueSites}
         selectedSite={selectedSite}
         onSelectSite={setSelectedSite}
         siteCounts={siteCounts}
         totalCount={totalCount}
+        activeView={activeView}
+        onSetActiveView={setActiveView}
         onOpenIngestTester={() => setIsIngestTesterOpen(true)}
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:pl-64 min-w-0">
         <Header
           onToggleMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setIsChangePasswordOpen(true)}
           onOpenIngestTester={() => setIsIngestTesterOpen(true)}
-          selectedSite={selectedSite}
+          selectedSite={activeView === 'prompts' ? 'Prompt Manager' : selectedSite}
           displayedLeads={allLeads}
         />
 
@@ -151,128 +145,112 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Quick Metrics Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-                <Users className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
-                  Total Leads
-                </p>
-                <p className="text-xl font-bold text-slate-900 font-mono">
-                  {totalCount}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
-                <Globe2 className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
-                  Active Projects
-                </p>
-                <p className="text-xl font-bold text-slate-900 font-mono">
-                  {uniqueSites.length}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
-                  Today's Leads
-                </p>
-                <p className="text-xl font-bold text-slate-900 font-mono">
-                  {leadsToday}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Filter Banner */}
-          {/* {selectedSite && (
-            <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center justify-between text-xs text-indigo-950">
-              <div className="flex items-center gap-2">
-                <span>Displaying table for:</span>
-                <span className="font-semibold px-2 py-0.5 rounded-md bg-white border border-indigo-200 shadow-2xs font-mono">
-                  {selectedSite}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedSite(null)}
-                className="font-semibold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
-              >
-                Show All Project Tables
-              </button>
-            </div>
-          )} */}
-
-          {/* Grouped Tables: Each project has its own separate DataTable */}
-          <div className="space-y-10">
-            {(selectedSite ? [selectedSite] : uniqueSites).map((site) => {
-              const siteLeads = allLeads.filter((l) => l.siteName === site);
-
-              return (
-                <div key={site} className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      <Globe2 className="w-5 h-5 text-indigo-500" />
-                      Project: {site}
-                    </h3>
-                    <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
-                      {siteLeads.length} records
-                    </span>
+          {activeView === 'prompts' ? (
+            <PromptManager />
+          ) : (
+            <>
+              {/* Quick Metrics Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
+                    <Users className="w-5 h-5" />
                   </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                      Total Leads
+                    </p>
+                    <p className="text-xl font-bold text-slate-900 font-mono">
+                      {totalCount}
+                    </p>
+                  </div>
+                </div>
 
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+                    <Globe2 className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                      Active Projects
+                    </p>
+                    <p className="text-xl font-bold text-slate-900 font-mono">
+                      {uniqueSites.length}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                      Today's Leads
+                    </p>
+                    <p className="text-xl font-bold text-slate-900 font-mono">
+                      {leadsToday}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grouped Tables */}
+              <div className="space-y-10">
+                {(selectedSite ? [selectedSite] : uniqueSites).map((site) => {
+                  const siteLeads = allLeads.filter((l) => l.siteName === site);
+
+                  return (
+                    <div key={site} className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                          <Globe2 className="w-5 h-5 text-indigo-500" />
+                          Project: {site}
+                        </h3>
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
+                          {siteLeads.length} records
+                        </span>
+                      </div>
+
+                      <DataTable
+                        leads={siteLeads}
+                        isLoading={isLoading}
+                        selectedSite={site}
+                        onDeleteLead={handleDeleteLead}
+                        onRefresh={fetchLeads}
+                      />
+                      
+                      {site === 'BO Score' && analyses.length > 0 && (
+                        <div className="mt-8 flex flex-col gap-3">
+                           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <LineChart className="w-5 h-5 text-indigo-500" />
+                                BO Score: Completed Analyses
+                              </h3>
+                              <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                                {analyses.length} records
+                              </span>
+                           </div>
+                           <AnalysisTable analyses={analyses} isLoading={isLoading} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {!isLoading && uniqueSites.length === 0 && (
                   <DataTable
-                    leads={siteLeads}
-                    isLoading={isLoading}
-                    selectedSite={site}
-                    onDeleteLead={handleDeleteLead}
+                    leads={[]}
+                    isLoading={false}
+                    selectedSite={null}
                     onRefresh={fetchLeads}
                   />
-                {/* === ADD THIS BLOCK: Appears only for BO Score === */}
-                  {site === 'BO Score' && analyses.length > 0 && (
-                    <div className="mt-8 flex flex-col gap-3">
-                       <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <LineChart className="w-5 h-5 text-indigo-500" />
-                            BO Score: Completed Analyses
-                          </h3>
-                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                            {analyses.length} records
-                          </span>
-                       </div>
-                       <AnalysisTable analyses={analyses} isLoading={isLoading} />
-                    </div>
-                  )}
-                  {/* ================================================= */}
-
-                </div>
-              );
-            })}
-
-            {!isLoading && uniqueSites.length === 0 && (
-              <DataTable
-                leads={[]}
-                isLoading={false}
-                selectedSite={null}
-                onRefresh={fetchLeads}
-              />
-            )}
-          </div>
+                )}
+              </div>
+            </>
+          )}
         </main>
       </div>
 
-      {/* Modals */}
       <ChangePasswordModal
         isOpen={isChangePasswordOpen}
         onClose={() => setIsChangePasswordOpen(false)}
