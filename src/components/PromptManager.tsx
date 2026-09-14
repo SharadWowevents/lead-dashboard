@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { Plus, Edit2, Trash2, Search, RefreshCw, X, Save } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, RefreshCw, X, Save, Calendar, Clock } from 'lucide-react';
 
 interface Prompt {
   id: string;
@@ -8,9 +8,33 @@ interface Prompt {
   category: string;
   title: string;
   prompt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const CATEGORIES = ['Marketing', 'Sales', 'Delivery', 'Finance', 'People', 'AI'];
+
+// Add a color mapping for the categories using Tailwind classes
+const CATEGORY_STYLES: Record<string, string> = {
+  Marketing: 'bg-amber-50 text-amber-700 border-amber-200',
+  Sales: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Delivery: 'bg-blue-50 text-blue-700 border-blue-200',
+  Finance: 'bg-rose-50 text-rose-700 border-rose-200',
+  People: 'bg-purple-50 text-purple-700 border-purple-200',
+  AI: 'bg-slate-50 text-slate-700 border-slate-200',
+};
+
+// Date formatter helper
+const formatDate = (dateString?: string) => {
+  if (!dateString) return 'N/A';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return 'N/A';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
 
 export const PromptManager: React.FC = () => {
   const { token } = useAuth();
@@ -163,49 +187,87 @@ export const PromptManager: React.FC = () => {
                 <th className="py-3 px-4 w-32">Category</th>
                 <th className="py-3 px-4 w-1/4">Title</th>
                 <th className="py-3 px-4 hidden sm:table-cell">Prompt Snippet</th>
+                
+                {/* Two Separate Date Columns */}
+                <th className="py-3 px-4 hidden lg:table-cell w-28">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Created</span>
+                  </div>
+                </th>
+                <th className="py-3 px-4 hidden xl:table-cell w-28">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Updated</span>
+                  </div>
+                </th>
+
                 <th className="py-3 px-4 text-right w-24">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs text-slate-800">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-500">Loading prompts...</td>
+                  <td colSpan={7} className="py-12 text-center text-slate-500">Loading prompts...</td>
                 </tr>
               ) : filteredPrompts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-500">No prompts found.</td>
+                  <td colSpan={7} className="py-12 text-center text-slate-500">No prompts found.</td>
                 </tr>
               ) : (
-                filteredPrompts.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/75 transition-colors group">
-                    <td className="py-3 px-4 font-mono text-slate-500 font-medium">{p.number}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-[10px] uppercase">
-                        {p.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{p.title}</td>
-                    <td className="py-3 px-4 text-slate-500 hidden sm:table-cell truncate max-w-xs font-mono">
-                      {p.prompt}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleOpenModal(p)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition cursor-pointer"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id, p.title)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredPrompts.map((p) => {
+                  // Check if the prompt has been modified since creation
+                  const isEdited = p.updatedAt && p.createdAt && p.updatedAt !== p.createdAt;
+                  
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/75 transition-colors group">
+                      <td className="py-3 px-4 font-mono text-slate-500 font-medium">{p.number}</td>
+                      <td className="py-3 px-4">
+                        {/* Dynamic Color Badge Applied Here */}
+                        <span className={`px-2 py-1 rounded-md border font-semibold text-[10px] uppercase ${CATEGORY_STYLES[p.category] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-900">{p.title}</td>
+                      <td className="py-3 px-4 text-slate-500 hidden sm:table-cell truncate max-w-xs font-mono">
+                        {p.prompt}
+                      </td>
+                      
+                      {/* Created Column */}
+                      <td className="py-3 px-4 hidden lg:table-cell text-slate-600 font-medium">
+                        {formatDate(p.createdAt)}
+                      </td>
+                      
+                      {/* Updated Column */}
+                      <td className="py-3 px-4 hidden xl:table-cell text-slate-600 font-medium">
+                        {isEdited ? (
+                          <span className="text-amber-600">{formatDate(p.updatedAt)}</span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenModal(p)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition cursor-pointer"
+                            title="Edit Prompt"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id, p.title)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition cursor-pointer"
+                            title="Delete Prompt"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -220,7 +282,7 @@ export const PromptManager: React.FC = () => {
               <h2 className="text-lg font-bold text-slate-900">
                 {editingPrompt ? 'Edit Prompt' : 'Create New Prompt'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-md">
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -228,22 +290,22 @@ export const PromptManager: React.FC = () => {
             <form onSubmit={handleSubmit} className="mt-4 overflow-y-auto space-y-4 flex-1 pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Prompt Number</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 ml-1">Prompt Number</label>
                   <input
                     type="number"
                     value={formData.number}
                     onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                     placeholder="Auto-assigned if empty"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none ml-1"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Category *</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 ml-1">Category *</label>
                   <select
                     required
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none cursor-pointer ml-1"
                   >
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -251,26 +313,26 @@ export const PromptManager: React.FC = () => {
               </div>
               
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Title *</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 ml-1">Title *</label>
                 <input
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g., ICP Profile Builder"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none ml-1"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Prompt Template * (Use [brackets] for variables)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 ml-1">Prompt Template * (Use [brackets] for variables)</label>
                 <textarea
                   required
                   rows={8}
                   value={formData.prompt}
                   onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
                   placeholder="I run a [type of business] in [city]..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-500 outline-none resize-none"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-500 outline-none resize-none ml-1"
                 />
               </div>
 
@@ -278,14 +340,14 @@ export const PromptManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition disabled:opacity-50 shadow-xs"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition disabled:opacity-50 shadow-xs cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
                   <span>{isSubmitting ? 'Saving...' : 'Save Prompt'}</span>
