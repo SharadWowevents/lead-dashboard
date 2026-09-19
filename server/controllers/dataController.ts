@@ -182,3 +182,12 @@ export async function getLogs(req: AuthRequest, res: Response): Promise<void> {
     res.status(500).json({ success: false, message: 'Failed to fetch logs' });
   }
 }
+
+export async function getPromptLogs(req: AuthRequest, res: Response) {
+  try {
+    const logs = await db.promptLogs.findMany();
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch prompt logs' });
+  }
+}

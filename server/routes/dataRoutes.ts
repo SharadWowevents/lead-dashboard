@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ingestLead, getLeads, getUniqueSites, deleteLead, getAnalyses, getLogs } from '../controllers/dataController.ts';
+import { ingestLead, getLeads, getUniqueSites, deleteLead, getAnalyses, getLogs, getPromptLogs } from '../controllers/dataController.ts';
 import { authenticateToken } from '../middleware/auth.ts';
 
 const router = Router();
@@ -13,5 +13,6 @@ router.get('/sites', authenticateToken, getUniqueSites);
 router.get('/analyses', authenticateToken, getAnalyses);
 router.delete('/data/:id', authenticateToken, deleteLead);
 router.get('/logs', authenticateToken, getLogs);
+router.get('/prompt-logs', authenticateToken, getPromptLogs);
 
 export default router;

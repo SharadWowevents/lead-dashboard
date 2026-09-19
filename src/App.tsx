@@ -7,11 +7,12 @@ import { DataTable } from './components/DataTable.tsx';
 import { ChangePasswordModal } from './components/ChangePasswordModal.tsx';
 import { IngestTesterModal } from './components/IngestTesterModal.tsx';
 import { LeadData } from './types/index.ts';
-import { Users, Globe2, Sparkles, AlertTriangle, LineChart, FileText } from 'lucide-react';
+import { Users, Globe2, Sparkles, AlertTriangle, LineChart, FileText, MessageSquare } from 'lucide-react';
 import { AnalysisTable } from './components/AnalysisTable.tsx';
 import { PromptManager } from './components/PromptManager.tsx';
 import { ResourceLogsTable } from './components/ResourceLogsTable.tsx';
 import { ResourceManager } from './components/ResourceManager.tsx';
+import { PromptLogsTable } from './components/PromptLogsTable.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
@@ -21,6 +22,7 @@ function DashboardContent() {
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
   const [analyses, setAnalyses] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]); 
+  const [promptLogs, setPromptLogs] = useState<any[]>([]); // New state for Prompt Logs
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
@@ -36,10 +38,11 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const [leadsRes, analysesRes, logsRes] = await Promise.all([
+      const [leadsRes, analysesRes, logsRes, promptLogsRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/prompt-logs', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (leadsRes.status === 401 || leadsRes.status === 403) {
@@ -59,6 +62,11 @@ function DashboardContent() {
         const lData = await logsRes.json();
         setLogs(lData.data || []);
       }
+
+      if (promptLogsRes.ok) {
+        const plData = await promptLogsRes.json();
+        setPromptLogs(plData.data || []);
+      }
       
     } catch (err: any) {
       console.error('Fetch leads error:', err);
@@ -75,7 +83,7 @@ function DashboardContent() {
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
     
-    // GUARANTEE THESE 5 PROJECTS ALWAYS APPEAR IN THE SIDEBAR
+    // GUARANTEE THESE 5 PROJECTS ALWAYS APPEAR
     const sitesSet = new Set<string>([
       '101 Business Prompts',
       '80-20 Book',
@@ -105,7 +113,6 @@ function DashboardContent() {
       }
     });
 
-    // Ensure empty projects at least show a 0 count
     sitesSet.forEach(site => {
       if (!counts[site]) counts[site] = 0;
     });
@@ -118,7 +125,6 @@ function DashboardContent() {
     };
   }, [allLeads]);
 
-  // Deduplicate leads by email for the "All Projects" view
   const uniqueLeadsAllProjects = useMemo(() => {
     const emailMap = new Map<string, LeadData>();
     
@@ -251,7 +257,7 @@ function DashboardContent() {
               {/* Data Tables Section */}
               <div className="space-y-10">
                 {!selectedSite ? (
-                  // ALL PROJECTS VIEW: Master deduplicated table
+                  // ALL PROJECTS VIEW
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -272,7 +278,7 @@ function DashboardContent() {
                     />
                   </div>
                 ) : (
-                  // INDIVIDUAL PROJECT VIEW: Specific tables
+                  // INDIVIDUAL PROJECT VIEW
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -291,6 +297,22 @@ function DashboardContent() {
                       onDeleteLead={handleDeleteLead}
                       onRefresh={fetchLeads}
                     />
+
+                    {/* Sub-table: 101 Business Prompts Logs */}
+                    {selectedSite === '101 Business Prompts' && promptLogs.length > 0 && (
+                      <div className="mt-8 flex flex-col gap-3">
+                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                              <MessageSquare className="w-5 h-5 text-indigo-500" />
+                              101 Prompts: Generation Logs
+                            </h3>
+                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                              {promptLogs.length} records
+                            </span>
+                         </div>
+                         <PromptLogsTable logs={promptLogs} isLoading={isLoading} />
+                      </div>
+                    )}
                     
                     {/* Sub-table: BO Score Analyses */}
                     {selectedSite === 'BO Score' && analyses.length > 0 && (

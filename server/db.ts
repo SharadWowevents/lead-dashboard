@@ -19,6 +19,18 @@ const adminUserSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true },
 }, { timestamps: true });
 
+const promptLogSchema = new mongoose.Schema({
+  userName: String,
+  userEmail: String,
+  userMobile: String,
+  promptId: String,
+  promptTitle: String,
+  originalTemplate: String,
+  filledInputs: mongoose.Schema.Types.Mixed,
+  finalFilledPrompt: String,
+  createdAt: { type: Date, default: Date.now }
+}, { collection: 'promptlogs' });
+
 const leadDataSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
@@ -62,6 +74,7 @@ const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
 
 const PromptLeadModel = promptDb.model('PromptUser', leadDataSchema, 'users');
 const PromptModel = promptDb.model('Prompt', promptSchema, 'prompts');
+const PromptLogModel = promptDb.model('PromptLog', promptLogSchema, 'promptlogs');
 
 const localProjects = [
   { siteName: 'BO Score', model: LeadDataModel },
@@ -103,6 +116,8 @@ const formatDoc = (doc: any, siteName: string) => {
   return { ...obj, id: obj._id.toString(), siteName, _id: undefined, __v: undefined };
 };
 
+
+
 export const db = {
   adminUser: {
     findUnique: async ({ where }: { where: { username?: string; id?: string } }) => {
@@ -116,6 +131,31 @@ export const db = {
     create: async ({ data }: { data: { username: string; passwordHash: string } }) => {
       return AdminUser.create(data);
     },
+  },
+
+
+  // --- PROMPT LOGS LOGIC ---
+  promptLogs: {
+    findMany: async () => {
+      try {
+        const docs = await PromptLogModel.find().sort({ createdAt: -1 });
+        return docs.map(doc => {
+          const obj = doc.toObject();
+          return {
+            id: obj._id.toString(),
+            userName: obj.userName || 'Unknown User',
+            userEmail: obj.userEmail || 'N/A',
+            userMobile: obj.userMobile || 'N/A',
+            promptTitle: obj.promptTitle || 'Unknown Prompt',
+            finalFilledPrompt: obj.finalFilledPrompt || '',
+            createdAt: obj.createdAt || new Date()
+          };
+        });
+      } catch (err) {
+        console.error('[DB] Failed to fetch prompt logs:', err);
+        return [];
+      }
+    }
   },
 
   leadData: {
@@ -333,3 +373,4 @@ AdminUser.countDocuments().then(async (count) => {
     await AdminUser.create({ username: 'admin', passwordHash });
   }
 });
+
