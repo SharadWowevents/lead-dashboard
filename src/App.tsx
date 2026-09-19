@@ -48,9 +48,7 @@ function DashboardContent() {
       }
 
       const leadsData = await leadsRes.json();
-      if (leadsRes.ok && leadsData.success) {
-        setAllLeads(leadsData.data || []);
-      }
+      if (leadsRes.ok && leadsData.success) setAllLeads(leadsData.data || []);
 
       if (analysesRes.ok) {
         const aData = await analysesRes.json();
@@ -74,10 +72,17 @@ function DashboardContent() {
     fetchLeads();
   }, [fetchLeads]);
 
-  // Metrics and Sidebar Site mapping
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
-    const sitesSet = new Set<string>();
+    
+    // GUARANTEE THESE 5 PROJECTS ALWAYS APPEAR IN THE SIDEBAR
+    const sitesSet = new Set<string>([
+      '101 Business Prompts',
+      '80-20 Book',
+      'BO Score',
+      'Resource Allocator',
+      'Sachin Talwar Page'
+    ]);
 
     const now = new Date();
     const todayYear = now.getUTCFullYear();
@@ -100,6 +105,11 @@ function DashboardContent() {
       }
     });
 
+    // Ensure empty projects at least show a 0 count
+    sitesSet.forEach(site => {
+      if (!counts[site]) counts[site] = 0;
+    });
+
     return {
       uniqueSites: Array.from(sitesSet).sort(),
       siteCounts: counts,
@@ -112,7 +122,6 @@ function DashboardContent() {
   const uniqueLeadsAllProjects = useMemo(() => {
     const emailMap = new Map<string, LeadData>();
     
-    // Sort oldest to newest so newest records become the primary visible data
     const sortedLeads = [...allLeads].sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -123,7 +132,6 @@ function DashboardContent() {
         emailMap.set(emailKey, { ...lead });
       } else {
         const existing = emailMap.get(emailKey)!;
-        // Append the site name if this user exists in multiple projects
         if (!existing.siteName.includes(lead.siteName)) {
           existing.siteName = `${existing.siteName}, ${lead.siteName}`;
         }
@@ -243,9 +251,7 @@ function DashboardContent() {
               {/* Data Tables Section */}
               <div className="space-y-10">
                 {!selectedSite ? (
-                  // ==========================================
                   // ALL PROJECTS VIEW: Master deduplicated table
-                  // ==========================================
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -266,9 +272,7 @@ function DashboardContent() {
                     />
                   </div>
                 ) : (
-                  // ==========================================
                   // INDIVIDUAL PROJECT VIEW: Specific tables
-                  // ==========================================
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">

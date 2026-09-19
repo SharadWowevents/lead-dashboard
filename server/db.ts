@@ -52,7 +52,6 @@ const promptSchema = new mongoose.Schema({
 
 // A. Local Databases
 const boscoreDb = connection.useDb('boscore');
-// Database where your 101 Prompts & Users reside (defaults to 'wowos_prompts')
 const promptDbName = process.env.PROMPT_DB_NAME || 'wowos_prompts';
 const promptDb = connection.useDb(promptDbName);
 
@@ -61,19 +60,12 @@ const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users');
 const LeadDataModel = boscoreDb.model('LeadData', leadDataSchema, 'users');
 const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
 
-// Register 101 Business Prompts Models
 const PromptLeadModel = promptDb.model('PromptUser', leadDataSchema, 'users');
 const PromptModel = promptDb.model('Prompt', promptSchema, 'prompts');
 
 const localProjects = [
-  {
-    siteName: 'BO Score',
-    model: LeadDataModel
-  },
-  {
-    siteName: '101 Business Prompts',
-    model: PromptLeadModel
-  }
+  { siteName: 'BO Score', model: LeadDataModel },
+  { siteName: '101 Business Prompts', model: PromptLeadModel }
 ];
 
 // B. External APIs Setup
@@ -85,13 +77,20 @@ const externalApis = [
     deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
     headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
   },
-  // --- NEW: Resource Allocator API ---
   {
     siteName: 'Resource Allocator',
-    prefix: 'RES_',
-    fetchUrl: 'https://resourcesapi.wowos.in/api/leads', // Update to public URL if not hosted on the same server
-    deleteUrl: (email: string) => `https://resourcesapi.wowos.in/api/leads/${email}`,
-    headers: {} 
+    prefix: 'STP_',
+    fetchUrl: 'https://api-80-20-book.wowos.in/api/leads',
+    deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
+    headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
+  },
+
+  {
+    siteName: 'Sachin Talwar Page',
+    prefix: 'STP_',
+    fetchUrl: 'https://api.sachintalwar.com/api/leads?limit=1000&skip=0',
+    deleteUrl: (id: string) => `https://api.sachintalwar.com/api/leads/${id}`,
+    headers: { 'x-api-key': 'hlVbjkYo9gNhVdhvMdYjB9Q0VZ6NkKfP' }
   }
 ];
 
@@ -105,7 +104,6 @@ const formatDoc = (doc: any, siteName: string) => {
 };
 
 export const db = {
-  // --- ADMIN LOGIC ---
   adminUser: {
     findUnique: async ({ where }: { where: { username?: string; id?: string } }) => {
       if (where.username) return AdminUser.findOne({ username: where.username });
@@ -120,7 +118,6 @@ export const db = {
     },
   },
 
-  // --- MULTI-SOURCE LEADS LOGIC ---
   leadData: {
     create: async ({ data }: { data: any }) => {
       const targetProject = localProjects.find(p => p.siteName === data.siteName);
@@ -132,14 +129,12 @@ export const db = {
     findMany: async ({ where, orderBy }: { where?: { siteName?: string }; orderBy?: any } = {}) => {
       let allLeads: any[] = [];
       
-      // 1. Fetch from Local MongoDB databases
       for (const project of localProjects) {
         if (where?.siteName && where.siteName !== project.siteName) continue;
         const docs = await project.model.find({});
         allLeads = [...allLeads, ...docs.map(doc => formatDoc(doc, project.siteName))];
       }
 
-      // 2. Fetch from External APIs
       for (const api of externalApis) {
         if (where?.siteName && where.siteName !== api.siteName) continue;
         
@@ -149,15 +144,17 @@ export const db = {
             const rawData = await res.json();
             const leadsArray = Array.isArray(rawData) ? rawData : (rawData.data || []);
             
-            const formattedExt = leadsArray.map((lead: any) => ({
-              // Fallback to email if `id` or `_id` doesn't exist (required for Resource Allocator)
-              id: `${api.prefix}${lead.id || lead._id || lead.email}`,
-              siteName: api.siteName,
-              name: lead.name || 'Unknown',
-              email: lead.email || 'N/A',
-              mobile: lead.mobile || lead.phone || 'N/A',
-              createdAt: lead.createdAt ? new Date(lead.createdAt) : new Date()
-            }));
+            const formattedExt = leadsArray.map((lead: any) => {
+              const combinedName = lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : null;
+              return {
+                id: `${api.prefix}${lead.id || lead._id || lead.email}`,
+                siteName: api.siteName,
+                name: lead.name || combinedName || 'Unknown',
+                email: lead.email || 'N/A',
+                mobile: lead.mobile || lead.phone || 'N/A',
+                createdAt: lead.createdAt ? new Date(lead.createdAt) : new Date()
+              };
+            });
             allLeads = [...allLeads, ...formattedExt];
           }
         } catch (err) {
@@ -165,7 +162,6 @@ export const db = {
         }
       }
       
-      // 3. Sort by date
       allLeads.sort((a, b) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
@@ -205,12 +201,11 @@ export const db = {
     },
   },
 
-  // --- ANALYSIS DATA LOGIC (For BO Score) ---
   analysisData: {
     findMany: async () => {
       try {
         const docs = await AnalysisModel.find()
-          .populate({ path: 'userId', select: 'name email mobile' }) // Ensured mobile is requested
+          .populate({ path: 'userId', select: 'name email mobile' }) 
           .sort({ createdAt: -1 });
 
         return docs.map(doc => {
@@ -219,7 +214,7 @@ export const db = {
             id: obj._id.toString(),
             name: obj.userId?.name || 'Unknown User',
             email: obj.userId?.email || 'N/A',
-            mobile: obj.userId?.mobile || 'N/A', // Changed phone to mobile for correct mapping
+            mobile: obj.userId?.mobile || 'N/A', 
             analysisName: obj.name || 'Unknown Analysis',
             scores: obj.scores,
             createdAt: obj.createdAt || new Date()
@@ -232,15 +227,47 @@ export const db = {
     }
   },
 
-  // --- NEW: RESOURCE LOGS LOGIC ---
+  resourceLinks: {
+    findMany: async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/resources');
+        return res.ok ? await res.json() : [];
+      } catch (err) {
+        console.error('[DB] Failed to fetch resources:', err);
+        return [];
+      }
+    },
+    create: async (data: { name: string; link: string }) => {
+      const res = await fetch('http://localhost:5000/api/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to create resource');
+      return await res.json();
+    },
+    update: async (id: string, data: { name: string; link: string }) => {
+      const res = await fetch(`http://localhost:5000/api/resources/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to update resource');
+      return await res.json();
+    },
+    delete: async (id: string) => {
+      const res = await fetch(`http://localhost:5000/api/resources/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete resource');
+      return { id };
+    }
+  },
+
   resourceLogs: {
     findMany: async () => {
       try {
-        // IMPORTANT: Change localhost:5000 to your live URL when deployed!
-        const res = await fetch('https://resourcesapi.wowos.in/api/logs');
+        const res = await fetch('http://localhost:5000/api/logs');
         if (res.ok) {
           const rawData = await res.json();
-          // The API returns the array directly
           return Array.isArray(rawData) ? rawData : [];
         }
         return [];
@@ -251,7 +278,6 @@ export const db = {
     }
   },
 
-  // --- PROMPTS CRUD LOGIC (For 101 Business Prompts) ---
   prompt: {
     findMany: async ({ category, search }: { category?: string; search?: string } = {}) => {
       const filter: any = {};
@@ -261,8 +287,8 @@ export const db = {
       if (search && search.trim()) {
         const q = search.trim();
         filter.$or = [
-          { title: { $regex: q, $options: 'i' } },
-          { prompt: { $regex: q, $options: 'i' } }
+          { title: { $regex: q,$options: 'i' } },
+          { prompt: { $regex: q,$options: 'i' } }
         ];
       }
       const docs = await PromptModel.find(filter).sort({ number: 1 });
@@ -271,36 +297,28 @@ export const db = {
         return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
       });
     },
-
     findById: async (id: string) => {
       const doc = await PromptModel.findById(id);
       if (!doc) return null;
       const obj = doc.toObject();
       return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
     },
-
     create: async (data: { number?: number; category: string; title: string; prompt: string }) => {
       let promptNumber = data.number;
       if (!promptNumber) {
         const last = await PromptModel.findOne().sort({ number: -1 });
         promptNumber = last && last.number ? last.number + 1 : 1;
       }
-
-      const newDoc = await PromptModel.create({
-        ...data,
-        number: promptNumber
-      });
+      const newDoc = await PromptModel.create({ ...data, number: promptNumber });
       const obj = newDoc.toObject();
       return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
     },
-
     update: async (id: string, data: { number?: number; category?: string; title?: string; prompt?: string }) => {
       const updated = await PromptModel.findByIdAndUpdate(id, data, { new: true, runValidators: true });
       if (!updated) return null;
       const obj = updated.toObject();
       return { ...obj, id: obj._id.toString(), _id: undefined, __v: undefined };
     },
-
     delete: async (id: string) => {
       const deleted = await PromptModel.findByIdAndDelete(id);
       if (!deleted) return null;
@@ -309,11 +327,9 @@ export const db = {
   }
 };
 
-// Seed admin
 AdminUser.countDocuments().then(async (count) => {
   if (count === 0) {
     const passwordHash = await bcrypt.hash('admin123', 10);
     await AdminUser.create({ username: 'admin', passwordHash });
-    console.log('[DB] Seeded default admin user.');
   }
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Filter, Search, Globe, LibraryBig } from 'lucide-react';
+import { Layers, Filter, Search, Globe, Link as LinkIcon, MessageSquare } from 'lucide-react';
 
 interface SidebarProps {
   sites: string[];
@@ -7,11 +7,11 @@ interface SidebarProps {
   onSelectSite: (site: string | null) => void;
   siteCounts: Record<string, number>;
   totalCount: number;
+  activeView: 'leads' | 'prompts' | 'resources';
+  onSetActiveView: (view: 'leads' | 'prompts' | 'resources') => void;
   onOpenIngestTester: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
-  activeView: 'leads' | 'prompts';
-  onSetActiveView: (view: 'leads' | 'prompts') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -20,22 +20,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSite,
   siteCounts,
   totalCount,
-  isMobileOpen,
-  onCloseMobile,
   activeView,
   onSetActiveView,
+  isMobileOpen,
+  onCloseMobile,
 }) => {
   const [siteSearch, setSiteSearch] = useState('');
 
   const filteredSites = sites.filter((s) =>
     s.toLowerCase().includes(siteSearch.toLowerCase())
   );
-
-  const handleSelectProject = (site: string | null) => {
-    onSetActiveView('leads');
-    onSelectSite(site);
-    onCloseMobile();
-  };
 
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between p-4 bg-slate-900 text-slate-200">
@@ -51,14 +45,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
+        {/* Management Tools Section */}
+        <div className="space-y-1">
+          <div className="px-2 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            System Management
+          </div>
+          
+          {/* Prompt Manager Button */}
+          <button
+            type="button"
+            onClick={() => {
+              onSetActiveView('prompts');
+              onCloseMobile();
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+              activeView === 'prompts'
+                ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 truncate">
+              <MessageSquare className={`w-4 h-4 ${activeView === 'prompts' ? 'text-white' : 'text-slate-400'}`} />
+              <span className="truncate">Manage 101 Prompts</span>
+            </div>
+          </button>
+
+          {/* Resource Manager Button */}
+          <button
+            type="button"
+            onClick={() => {
+              onSetActiveView('resources');
+              onCloseMobile();
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+              activeView === 'resources'
+                ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 truncate">
+              <LinkIcon className={`w-4 h-4 ${activeView === 'resources' ? 'text-white' : 'text-slate-400'}`} />
+              <span className="truncate">Manage Resources</span>
+            </div>
+          </button>
+        </div>
+
         {/* Project Section */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-400 tracking-wider uppercase">
+          <div className="flex items-center justify-between px-2 text-[10px] font-semibold text-slate-500 tracking-wider uppercase">
             <span className="flex items-center gap-1.5">
               <Filter className="w-3.5 h-3.5 text-slate-400" />
               Projects
             </span>
-            <span className="text-[11px] font-mono text-slate-400">{sites.length} sites</span>
+            <span className="text-[10px] font-mono text-slate-400">{sites.length} sites</span>
           </div>
 
           {/* Search Sites Input */}
@@ -78,9 +117,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           <nav className="space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+            {/* All Projects Button */}
             <button
               type="button"
-              onClick={() => handleSelectProject(null)}
+              onClick={() => {
+                onSetActiveView('leads');
+                onSelectSite(null);
+                onCloseMobile();
+              }}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                 activeView === 'leads' && selectedSite === null
                   ? 'bg-indigo-600 text-white shadow-sm font-semibold'
@@ -102,6 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </button>
 
+            {/* Individual Projects List */}
             {filteredSites.map((site) => {
               const isSelected = activeView === 'leads' && selectedSite === site;
               const count = siteCounts[site] || 0;
@@ -110,7 +155,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={site}
                   type="button"
-                  onClick={() => handleSelectProject(isSelected ? null : site)}
+                  onClick={() => {
+                    onSetActiveView('leads'); // Force switch back to leads view
+                    onSelectSite(isSelected ? null : site);
+                    onCloseMobile();
+                  }}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                     isSelected
                       ? 'bg-indigo-600 text-white shadow-sm font-semibold'
@@ -137,30 +186,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               );
             })}
+
+            {filteredSites.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-slate-400">
+                No matching projects
+              </div>
+            )}
           </nav>
         </div>
+      </div>
 
-        {/* System Management Section */}
-        <div className="space-y-2 pt-4 border-t border-slate-800">
-           <div className="flex items-center px-2 text-xs font-semibold text-slate-400 tracking-wider uppercase mb-2">
-            System Management
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              onSetActiveView('prompts');
-              onCloseMobile();
-            }}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
-              activeView === 'prompts'
-                ? 'bg-amber-500/20 text-amber-400 shadow-sm font-semibold border border-amber-500/30'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent'
-            }`}
-          >
-             <LibraryBig className={`w-4 h-4 ${activeView === 'prompts' ? 'text-amber-400' : 'text-slate-400'}`} />
-             <span>Manage 101 Prompts</span>
-          </button>
+      {/* Footer Info */}
+      <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs">
+        <div className="flex items-center justify-between text-slate-300 font-medium mb-1">
+          <span className="text-[11px] text-slate-400 uppercase tracking-wider">Status</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Connected
+          </span>
         </div>
+        <p className="text-[11px] text-slate-400 truncate">
+          Port 3007 Active
+        </p>
       </div>
     </div>
   );
