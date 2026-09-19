@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           {/* Resource Manager Button */}
-          <button
+          {/* <button
             type="button"
             onClick={() => {
               onSetActiveView('resources');
@@ -87,7 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <LinkIcon className={`w-4 h-4 ${activeView === 'resources' ? 'text-white' : 'text-slate-400'}`} />
               <span className="truncate">Manage Resources</span>
             </div>
-          </button>
+          </button> */}
         </div>
 
         {/* Project Section */}
