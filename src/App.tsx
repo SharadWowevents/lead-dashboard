@@ -11,15 +11,16 @@ import { Users, Globe2, Sparkles, AlertTriangle, LineChart, FileText } from 'luc
 import { AnalysisTable } from './components/AnalysisTable.tsx';
 import { PromptManager } from './components/PromptManager.tsx';
 import { ResourceLogsTable } from './components/ResourceLogsTable.tsx';
+import { ResourceManager } from './components/ResourceManager.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
-  const [activeView, setActiveView] = useState<'leads' | 'prompts'>('leads');
+  const [activeView, setActiveView] = useState<'leads' | 'prompts' | 'resources'>('leads');
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
   
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
   const [analyses, setAnalyses] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]); // Added logs state
+  const [logs, setLogs] = useState<any[]>([]); 
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
@@ -46,19 +47,16 @@ function DashboardContent() {
         return;
       }
 
-      // Handle Leads Data
       const leadsData = await leadsRes.json();
       if (leadsRes.ok && leadsData.success) {
         setAllLeads(leadsData.data || []);
       }
 
-      // Handle Analyses Data
       if (analysesRes.ok) {
         const aData = await analysesRes.json();
         setAnalyses(aData.data || []);
       }
 
-      // Handle Logs Data
       if (logsRes.ok) {
         const lData = await logsRes.json();
         setLogs(lData.data || []);
@@ -76,6 +74,7 @@ function DashboardContent() {
     fetchLeads();
   }, [fetchLeads]);
 
+  // Metrics and Sidebar Site mapping
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
     const sitesSet = new Set<string>();
@@ -107,6 +106,31 @@ function DashboardContent() {
       totalCount: allLeads.length,
       leadsToday: todayCount,
     };
+  }, [allLeads]);
+
+  // Deduplicate leads by email for the "All Projects" view
+  const uniqueLeadsAllProjects = useMemo(() => {
+    const emailMap = new Map<string, LeadData>();
+    
+    // Sort oldest to newest so newest records become the primary visible data
+    const sortedLeads = [...allLeads].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    sortedLeads.forEach((lead) => {
+      const emailKey = (lead.email || '').toLowerCase().trim();
+      if (!emailMap.has(emailKey)) {
+        emailMap.set(emailKey, { ...lead });
+      } else {
+        const existing = emailMap.get(emailKey)!;
+        // Append the site name if this user exists in multiple projects
+        if (!existing.siteName.includes(lead.siteName)) {
+          existing.siteName = `${existing.siteName}, ${lead.siteName}`;
+        }
+      }
+    });
+
+    return Array.from(emailMap.values());
   }, [allLeads]);
 
   const handleDeleteLead = async (id: string | number) => {
@@ -147,7 +171,13 @@ function DashboardContent() {
           onToggleMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setIsChangePasswordOpen(true)}
           onOpenIngestTester={() => setIsIngestTesterOpen(true)}
-          selectedSite={activeView === 'prompts' ? 'Prompt Manager' : selectedSite}
+          selectedSite={
+            activeView === 'prompts' 
+              ? 'Prompt Manager' 
+              : activeView === 'resources' 
+              ? 'Resource Manager' 
+              : selectedSite
+          }
           displayedLeads={allLeads}
         />
 
@@ -160,7 +190,9 @@ function DashboardContent() {
           )}
 
           {activeView === 'prompts' ? (
-            <PromptManager />
+            <PromptManager /> 
+          ) : activeView === 'resources' ? ( 
+            <ResourceManager />
           ) : (
             <>
               {/* Quick Metrics Row */}
@@ -171,7 +203,7 @@ function DashboardContent() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
-                      Total Leads
+                      Total Records
                     </p>
                     <p className="text-xl font-bold text-slate-900 font-mono">
                       {totalCount}
@@ -208,73 +240,86 @@ function DashboardContent() {
                 </div>
               </div>
 
-              {/* Grouped Tables */}
+              {/* Data Tables Section */}
               <div className="space-y-10">
-                {(selectedSite ? [selectedSite] : uniqueSites).map((site) => {
-                  const siteLeads = allLeads.filter((l) => l.siteName === site);
-
-                  return (
-                    <div key={site} className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                          <Globe2 className="w-5 h-5 text-indigo-500" />
-                          Project: {site}
-                        </h3>
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
-                          {siteLeads.length} records
-                        </span>
-                      </div>
-
-                      <DataTable
-                        leads={siteLeads}
-                        isLoading={isLoading}
-                        selectedSite={site}
-                        onDeleteLead={handleDeleteLead}
-                        onRefresh={fetchLeads}
-                      />
-                      
-                      {/* Sub-table: BO Score Analyses */}
-                      {site === 'BO Score' && analyses.length > 0 && (
-                        <div className="mt-8 flex flex-col gap-3">
-                           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <LineChart className="w-5 h-5 text-indigo-500" />
-                                BO Score: Completed Analyses
-                              </h3>
-                              <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                                {analyses.length} records
-                              </span>
-                           </div>
-                           <AnalysisTable analyses={analyses} isLoading={isLoading} />
-                        </div>
-                      )}
-
-                      {/* Sub-table: Resource Allocator Logs */}
-                      {site === 'Resource Allocator' && logs.length > 0 && (
-                        <div className="mt-8 flex flex-col gap-3">
-                           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <FileText className="w-5 h-5 text-indigo-500" />
-                                Resource Allocator: Download Logs
-                              </h3>
-                              <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                                {logs.length} records
-                              </span>
-                           </div>
-                           <ResourceLogsTable logs={logs} isLoading={isLoading} />
-                        </div>
-                      )}
+                {!selectedSite ? (
+                  // ==========================================
+                  // ALL PROJECTS VIEW: Master deduplicated table
+                  // ==========================================
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <Globe2 className="w-5 h-5 text-indigo-500" />
+                        All Projects: Unique Leads
+                      </h3>
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
+                        {uniqueLeadsAllProjects.length} unique people
+                      </span>
                     </div>
-                  );
-                })}
 
-                {!isLoading && uniqueSites.length === 0 && (
-                  <DataTable
-                    leads={[]}
-                    isLoading={false}
-                    selectedSite={null}
-                    onRefresh={fetchLeads}
-                  />
+                    <DataTable
+                      leads={uniqueLeadsAllProjects}
+                      isLoading={isLoading}
+                      selectedSite="All Projects"
+                      onDeleteLead={handleDeleteLead}
+                      onRefresh={fetchLeads}
+                    />
+                  </div>
+                ) : (
+                  // ==========================================
+                  // INDIVIDUAL PROJECT VIEW: Specific tables
+                  // ==========================================
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <Globe2 className="w-5 h-5 text-indigo-500" />
+                        Project: {selectedSite}
+                      </h3>
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
+                        {allLeads.filter(l => l.siteName === selectedSite).length} records
+                      </span>
+                    </div>
+
+                    <DataTable
+                      leads={allLeads.filter(l => l.siteName === selectedSite)}
+                      isLoading={isLoading}
+                      selectedSite={selectedSite}
+                      onDeleteLead={handleDeleteLead}
+                      onRefresh={fetchLeads}
+                    />
+                    
+                    {/* Sub-table: BO Score Analyses */}
+                    {selectedSite === 'BO Score' && analyses.length > 0 && (
+                      <div className="mt-8 flex flex-col gap-3">
+                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                              <LineChart className="w-5 h-5 text-indigo-500" />
+                              BO Score: Completed Analyses
+                            </h3>
+                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                              {analyses.length} records
+                            </span>
+                         </div>
+                         <AnalysisTable analyses={analyses} isLoading={isLoading} />
+                      </div>
+                    )}
+
+                    {/* Sub-table: Resource Allocator Logs */}
+                    {selectedSite === 'Resource Allocator' && logs.length > 0 && (
+                      <div className="mt-8 flex flex-col gap-3">
+                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-indigo-500" />
+                              Resource Allocator: Download Logs
+                            </h3>
+                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                              {logs.length} records
+                            </span>
+                         </div>
+                         <ResourceLogsTable logs={logs} isLoading={isLoading} />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </>
