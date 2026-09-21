@@ -92,12 +92,11 @@ const externalApis = [
   },
   {
     siteName: 'Resource Allocator',
-    prefix: 'STP_',
-    fetchUrl: 'https://api-80-20-book.wowos.in/api/leads',
-    deleteUrl: (id: string) => `https://api-80-20-book.wowos.in/api/leads/${id}`,
-    headers: { 'x-api-key': 'db2171d1d5a503502c434ab65fcb0ada8d42a7ba8f56ad678878' }
+    prefix: 'RES_',
+    fetchUrl: 'https://resourcesapi.wowos.in/api/leads',
+    deleteUrl: (email: string) => `https://resourcesapi.wowos.in/api/leads/${email}`,
+    headers: {} 
   },
-
   {
     siteName: 'Sachin Talwar Page',
     prefix: 'STP_',
@@ -116,8 +115,6 @@ const formatDoc = (doc: any, siteName: string) => {
   return { ...obj, id: obj._id.toString(), siteName, _id: undefined, __v: undefined };
 };
 
-
-
 export const db = {
   adminUser: {
     findUnique: async ({ where }: { where: { username?: string; id?: string } }) => {
@@ -132,7 +129,6 @@ export const db = {
       return AdminUser.create(data);
     },
   },
-
 
   // --- PROMPT LOGS LOGIC ---
   promptLogs: {
@@ -270,7 +266,7 @@ export const db = {
   resourceLinks: {
     findMany: async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/resources');
+        const res = await fetch('https://resourcesapi.wowos.in/api/resources');
         return res.ok ? await res.json() : [];
       } catch (err) {
         console.error('[DB] Failed to fetch resources:', err);
@@ -278,7 +274,7 @@ export const db = {
       }
     },
     create: async (data: { name: string; link: string }) => {
-      const res = await fetch('http://localhost:5000/api/resources', {
+      const res = await fetch('https://resourcesapi.wowos.in/api/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -287,7 +283,7 @@ export const db = {
       return await res.json();
     },
     update: async (id: string, data: { name: string; link: string }) => {
-      const res = await fetch(`http://localhost:5000/api/resources/${id}`, {
+      const res = await fetch(`https://resourcesapi.wowos.in/api/resources/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -296,7 +292,7 @@ export const db = {
       return await res.json();
     },
     delete: async (id: string) => {
-      const res = await fetch(`http://localhost:5000/api/resources/${id}`, { method: 'DELETE' });
+      const res = await fetch(`https://resourcesapi.wowos.in/api/resources/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete resource');
       return { id };
     }
@@ -305,7 +301,7 @@ export const db = {
   resourceLogs: {
     findMany: async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/logs');
+        const res = await fetch('https://resourcesapi.wowos.in/api/logs');
         if (res.ok) {
           const rawData = await res.json();
           return Array.isArray(rawData) ? rawData : [];
@@ -373,4 +369,3 @@ AdminUser.countDocuments().then(async (count) => {
     await AdminUser.create({ username: 'admin', passwordHash });
   }
 });
-
