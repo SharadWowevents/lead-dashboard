@@ -83,7 +83,7 @@ function DashboardContent() {
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
     
-    // GUARANTEE THESE 5 PROJECTS ALWAYS APPEAR HERE
+    // GUARANTEE THESE 5 PROJECTS ALWAYS APPEAR 
     const sitesSet = new Set<string>([
       '101 Business Prompts',
       '80-20 Book',
