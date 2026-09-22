@@ -2,13 +2,29 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 // ==========================================
-// 1. BASE MONGODB CONNECTION
+// 1. BASE MONGODB CONNECTION (Build-Safe)
 // ==========================================
+const isBuilding = process.env.npm_lifecycle_event === 'build';
 const BASE_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017';
-const connection = mongoose.createConnection(BASE_URI);
 
-connection.on('connected', () => console.log(`[DB] Connected to MongoDB`));
-connection.on('error', (err) => console.error('[DB] Connection error:', err));
+let connection: any;
+
+if (isBuilding) {
+  console.log('[DB] Skipping MongoDB connection during Vite build to prevent hanging.');
+  // Dummy connection so the ES Module parses without errors or open sockets
+  connection = {
+    useDb: () => ({
+      model: () => ({})
+    }),
+    on: () => {}
+  };
+} else {
+  // Live connection
+  connection = mongoose.createConnection(BASE_URI);
+  connection.on('connected', () => console.log(`[DB] Connected to MongoDB`));
+  connection.on('error', (err) => console.error('[DB] Connection error:', err));
+}
+
 export const isPrismaConnected = true;
 
 // ==========================================
@@ -363,9 +379,13 @@ export const db = {
   }
 };
 
-AdminUser.countDocuments().then(async (count) => {
-  if (count === 0) {
-    const passwordHash = await bcrypt.hash('admin123', 10);
-    await AdminUser.create({ username: 'admin', passwordHash });
-  }
-});
+// Only run the admin seeder if we are actually running the server (not building)
+if (!isBuilding) {
+  AdminUser.countDocuments().then(async (count) => {
+    if (count === 0) {
+      const passwordHash = await bcrypt.hash('admin123', 10);
+      await AdminUser.create({ username: 'admin', passwordHash });
+      console.log('[DB] Seeded default admin user.');
+    }
+  }).catch(err => console.error('[DB] Seeding error:', err));
+}
