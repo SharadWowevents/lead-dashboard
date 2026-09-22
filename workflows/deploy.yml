@@ -30,7 +30,7 @@ jobs:
             npm install
             
             echo "Building frontend..."
-            npm run build
+            CI=true NODE_OPTIONS="--max-old-space-size=1024" npm run build
             
             echo "Restarting backend server..."
             pm2 restart all
