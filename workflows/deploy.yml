@@ -23,8 +23,9 @@ jobs:
             echo "Navigating to project directory..."
             cd /var/www/lead-dashboard 
             
-            echo "Pulling latest code from GitHub..."
-            git pull origin main
+            echo "Force pulling latest code from GitHub..."
+            git fetch --all
+            git reset --hard origin/main
             
             echo "Installing backend dependencies..."
             npm install
