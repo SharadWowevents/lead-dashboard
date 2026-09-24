@@ -191,3 +191,12 @@ export async function getPromptLogs(req: AuthRequest, res: Response) {
     res.status(500).json({ success: false, message: 'Failed to fetch prompt logs' });
   }
 }
+
+export async function getWowosScoreLogs(req: AuthRequest, res: Response) {
+  try {
+    const logs = await db.wowosScoreLogs.findMany();
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch WOWOS score logs' });
+  }
+}

@@ -13,17 +13,18 @@ import { PromptManager } from './components/PromptManager.tsx';
 import { ResourceLogsTable } from './components/ResourceLogsTable.tsx';
 import { ResourceManager } from './components/ResourceManager.tsx';
 import { PromptLogsTable } from './components/PromptLogsTable.tsx';
+import { WowosScoreLogsTable } from './components/WowosScoreLogsTable.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
   const [activeView, setActiveView] = useState<'leads' | 'prompts' | 'resources'>('leads');
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
-  
+
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
   const [analyses, setAnalyses] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]); 
+  const [logs, setLogs] = useState<any[]>([]);
   const [promptLogs, setPromptLogs] = useState<any[]>([]); // New state for Prompt Logs
-  
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
@@ -38,13 +39,17 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const [leadsRes, analysesRes, logsRes, promptLogsRes] = await Promise.all([
+      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/prompt-logs', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/prompt-logs', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/wowos-score-logs', { headers: { Authorization: `Bearer ${token}` } })
       ]);
-
+      if (wowosLogsRes.ok) {
+        const wData = await wowosLogsRes.json();
+        setWowosScoreLogs(Array.isArray(wData) ? wData : (wData.data || []));
+      }
       if (leadsRes.status === 401 || leadsRes.status === 403) {
         logout();
         return;
@@ -67,7 +72,7 @@ function DashboardContent() {
         const plData = await promptLogsRes.json();
         setPromptLogs(plData.data || []);
       }
-      
+
     } catch (err: any) {
       console.error('Fetch leads error:', err);
       setErrorNotice('Network error: Unable to contact backend API');
@@ -82,7 +87,7 @@ function DashboardContent() {
 
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
-    
+
     // GUARANTEE THESE 5 PROJECTS ALWAYS APPEAR HERE
     const sitesSet = new Set<string>([
       '101 Business Prompts',
@@ -130,7 +135,7 @@ function DashboardContent() {
   const getUniqueLeads = useCallback((leads: LeadData[]) => {
     const emailMap = new Map<string, LeadData>();
     const sorted = [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    
+
     sorted.forEach((lead) => {
       const emailKey = (lead.email || '').toLowerCase().trim();
       if (!emailKey || emailKey === 'n/a') {
@@ -139,14 +144,14 @@ function DashboardContent() {
         emailMap.set(emailKey, lead);
       }
     });
-    
+
     return Array.from(emailMap.values());
   }, []);
 
   const uniqueLeadsAllProjects = useMemo(() => {
     const emailMap = new Map<string, LeadData>();
-    
-    const sortedLeads = [...allLeads].sort((a, b) => 
+
+    const sortedLeads = [...allLeads].sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
@@ -204,11 +209,11 @@ function DashboardContent() {
           onOpenChangePassword={() => setIsChangePasswordOpen(true)}
           onOpenIngestTester={() => setIsIngestTesterOpen(true)}
           selectedSite={
-            activeView === 'prompts' 
-              ? 'Prompt Manager' 
-              : activeView === 'resources' 
-              ? 'Resource Manager' 
-              : selectedSite
+            activeView === 'prompts'
+              ? 'Prompt Manager'
+              : activeView === 'resources'
+                ? 'Resource Manager'
+                : selectedSite
           }
           displayedLeads={allLeads}
         />
@@ -222,8 +227,8 @@ function DashboardContent() {
           )}
 
           {activeView === 'prompts' ? (
-            <PromptManager /> 
-          ) : activeView === 'resources' ? ( 
+            <PromptManager />
+          ) : activeView === 'resources' ? (
             <ResourceManager />
           ) : (
             <>
@@ -316,51 +321,66 @@ function DashboardContent() {
                       onRefresh={fetchLeads}
                     />
 
+                    {selectedSite === 'WOWOS Score' && wowosScoreLogs.length > 0 && (
+                      <div className="mt-8 flex flex-col gap-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <LineChart className="w-5 h-5 text-indigo-500" />
+                            WOWOS Score: Assessment Submission Logs
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                            {wowosScoreLogs.length} records
+                          </span>
+                        </div>
+                        <WowosScoreLogsTable logs={wowosScoreLogs} isLoading={isLoading} />
+                      </div>
+                    )}
+
                     {/* Sub-table: 101 Business Prompts Logs */}
                     {selectedSite === '101 Business Prompts' && promptLogs.length > 0 && (
                       <div className="mt-8 flex flex-col gap-3">
-                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                              <MessageSquare className="w-5 h-5 text-indigo-500" />
-                              101 Prompts: Generation Logs
-                            </h3>
-                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                              {promptLogs.length} records
-                            </span>
-                         </div>
-                         <PromptLogsTable logs={promptLogs} isLoading={isLoading} />
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <MessageSquare className="w-5 h-5 text-indigo-500" />
+                            101 Prompts: Generation Logs
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                            {promptLogs.length} records
+                          </span>
+                        </div>
+                        <PromptLogsTable logs={promptLogs} isLoading={isLoading} />
                       </div>
                     )}
-                    
+
                     {/* Sub-table: BO Score Analyses */}
                     {selectedSite === 'BO Score' && analyses.length > 0 && (
                       <div className="mt-8 flex flex-col gap-3">
-                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                              <LineChart className="w-5 h-5 text-indigo-500" />
-                              BO Score: Completed Analyses
-                            </h3>
-                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                              {analyses.length} records
-                            </span>
-                         </div>
-                         <AnalysisTable analyses={analyses} isLoading={isLoading} />
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <LineChart className="w-5 h-5 text-indigo-500" />
+                            BO Score: Completed Analyses
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                            {analyses.length} records
+                          </span>
+                        </div>
+                        <AnalysisTable analyses={analyses} isLoading={isLoading} />
                       </div>
                     )}
 
                     {/* Sub-table: Resource Allocator Logs */}
                     {selectedSite === 'Resource Allocator' && logs.length > 0 && (
                       <div className="mt-8 flex flex-col gap-3">
-                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                              <FileText className="w-5 h-5 text-indigo-500" />
-                              Resource Allocator: Download Logs
-                            </h3>
-                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
-                              {logs.length} records
-                            </span>
-                         </div>
-                         <ResourceLogsTable logs={logs} isLoading={isLoading} />
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-indigo-500" />
+                            Resource Allocator: Download Logs
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                            {logs.length} records
+                          </span>
+                        </div>
+                        <ResourceLogsTable logs={logs} isLoading={isLoading} />
                       </div>
                     )}
                   </div>

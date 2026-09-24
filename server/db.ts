@@ -16,7 +16,7 @@ if (isBuilding) {
     useDb: () => ({
       model: () => ({})
     }),
-    on: () => {}
+    on: () => { }
   };
 } else {
   // Live connection
@@ -55,7 +55,7 @@ const leadDataSchema = new mongoose.Schema({
 }, { strict: false });
 
 const analysisSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadData' }, 
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'LeadData' },
   name: String,
   scores: mongoose.Schema.Types.Mixed,
   createdAt: { type: Date, default: Date.now },
@@ -65,14 +65,17 @@ const analysisSchema = new mongoose.Schema({
 // Schema for 101 Business Prompts
 const promptSchema = new mongoose.Schema({
   number: { type: Number, required: true, unique: true },
-  category: { 
-    type: String, 
+  category: {
+    type: String,
     required: true,
-    enum: ['Marketing', 'Sales', 'Delivery', 'Finance', 'People', 'AI'] 
+    enum: ['Marketing', 'Sales', 'Delivery', 'Finance', 'People', 'AI']
   },
   title: { type: String, required: true },
   prompt: { type: String, required: true }
 }, { timestamps: true });
+
+
+
 
 // ==========================================
 // 3. YOUR DATA SOURCES CONFIGURATION
@@ -84,7 +87,7 @@ const promptDbName = process.env.PROMPT_DB_NAME || 'wowos_prompts';
 const promptDb = connection.useDb(promptDbName);
 
 // Register Models
-const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users'); 
+const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users');
 const LeadDataModel = boscoreDb.model('LeadData', leadDataSchema, 'users');
 const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
 
@@ -111,7 +114,7 @@ const externalApis = [
     prefix: 'RES_',
     fetchUrl: 'https://resourcesapi.wowos.in/api/leads',
     deleteUrl: (email: string) => `https://resourcesapi.wowos.in/api/leads/${email}`,
-    headers: {} 
+    headers: {}
   },
   {
     siteName: 'Sachin Talwar Page',
@@ -128,6 +131,7 @@ const externalApis = [
     headers: { 'x-api-key': 'lM2SpmkwXyQzRx1nX9CXjHLRSiW46RVK' }
   }
 ];
+
 
 // ==========================================
 // 4. DATABASE ABSTRACTION LOGIC
@@ -177,6 +181,37 @@ export const db = {
     }
   },
 
+  // --- WOWOS SCORE ASSESSMENT LOGS ---
+  wowosScoreLogs: {
+    findMany: async () => {
+      try {
+        const res = await fetch('https://scoreapi.wowos.in/api/leads?limit=1000', {
+          headers: { 'x-api-key': 'lM2SpmkwXyQzRx1nX9CXjHLRSiW46RVK' }
+        });
+        if (res.ok) {
+          const rawData = await res.json();
+          const array = Array.isArray(rawData) ? rawData : (rawData.data || []);
+          return array.map((item: any) => ({
+            id: item.id || item._id,
+            name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Unknown',
+            email: item.email || 'N/A',
+            mobile: item.mobile || 'N/A',
+            status: item.assessment?.status || 'N/A',
+            yesCount: item.assessment?.yesCount ?? 'N/A',
+            yesTotal: item.assessment?.yesTotal ?? 15,
+            percentage: item.assessment?.score?.percentage ?? 0,
+            tier: item.assessment?.score?.tier || 'N/A',
+            createdAt: item.createdAt ? new Date(item.createdAt) : new Date()
+          }));
+        }
+        return [];
+      } catch (err) {
+        console.error('[DB] Failed to fetch WOWOS Score logs:', err);
+        return [];
+      }
+    }
+  },
+
   leadData: {
     create: async ({ data }: { data: any }) => {
       const targetProject = localProjects.find(p => p.siteName === data.siteName);
@@ -187,7 +222,7 @@ export const db = {
 
     findMany: async ({ where, orderBy }: { where?: { siteName?: string }; orderBy?: any } = {}) => {
       let allLeads: any[] = [];
-      
+
       for (const project of localProjects) {
         if (where?.siteName && where.siteName !== project.siteName) continue;
         const docs = await project.model.find({});
@@ -196,13 +231,13 @@ export const db = {
 
       for (const api of externalApis) {
         if (where?.siteName && where.siteName !== api.siteName) continue;
-        
+
         try {
           const res = await fetch(api.fetchUrl, { headers: api.headers });
           if (res.ok) {
             const rawData = await res.json();
             const leadsArray = Array.isArray(rawData) ? rawData : (rawData.data || []);
-            
+
             const formattedExt = leadsArray.map((lead: any) => {
               const combinedName = lead.firstName ? `${lead.firstName} ${lead.lastName || ''}`.trim() : null;
               return {
@@ -220,13 +255,13 @@ export const db = {
           console.error(`[DB] Failed to fetch leads from ${api.siteName}:`, err);
         }
       }
-      
+
       allLeads.sort((a, b) => {
         const dateA = new Date(a.createdAt || 0).getTime();
         const dateB = new Date(b.createdAt || 0).getTime();
         return orderBy?.createdAt === 'asc' ? dateA - dateB : dateB - dateA;
       });
-      
+
       return allLeads;
     },
 
@@ -240,7 +275,7 @@ export const db = {
           } catch (err) {
             console.error(`[DB] Failed to delete from ${api.siteName}:`, err);
           }
-          return null; 
+          return null;
         }
       }
 
@@ -264,7 +299,7 @@ export const db = {
     findMany: async () => {
       try {
         const docs = await AnalysisModel.find()
-          .populate({ path: 'userId', select: 'name email mobile' }) 
+          .populate({ path: 'userId', select: 'name email mobile' })
           .sort({ createdAt: -1 });
 
         return docs.map(doc => {
@@ -273,7 +308,7 @@ export const db = {
             id: obj._id.toString(),
             name: obj.userId?.name || 'Unknown User',
             email: obj.userId?.email || 'N/A',
-            mobile: obj.userId?.mobile || 'N/A', 
+            mobile: obj.userId?.mobile || 'N/A',
             analysisName: obj.name || 'Unknown Analysis',
             scores: obj.scores,
             createdAt: obj.createdAt || new Date()
@@ -346,8 +381,8 @@ export const db = {
       if (search && search.trim()) {
         const q = search.trim();
         filter.$or = [
-          { title: { $regex: q,$options: 'i' } },
-          { prompt: { $regex: q,$options: 'i' } }
+          { title: { $regex: q, $options: 'i' } },
+          { prompt: { $regex: q, $options: 'i' } }
         ];
       }
       const docs = await PromptModel.find(filter).sort({ number: 1 });
