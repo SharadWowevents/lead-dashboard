@@ -200,3 +200,12 @@ export async function getWowosScoreLogs(req: AuthRequest, res: Response) {
     res.status(500).json({ success: false, message: 'Failed to fetch WOWOS score logs' });
   }
 }
+
+export async function getSachinTalwarLogs(req: AuthRequest, res: Response) {
+  try {
+    const logs = await db.sachinTalwarLogs.findMany();
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch Sachin Talwar logs' });
+  }
+}

@@ -212,6 +212,39 @@ export const db = {
     }
   },
 
+  sachinTalwarLogs: {
+    findMany: async () => {
+      try {
+        const res = await fetch('https://api.sachintalwar.com/api/leads', {
+          headers: { 'x-api-key': 'hlVbjkYo9gNhVdhvMdYjB9Q0VZ6NkKfP' }
+        });
+        if (res.ok) {
+          const rawData = await res.json();
+          const array = Array.isArray(rawData) ? rawData : (rawData.data || []);
+          return array.map((item: any) => {
+            const combinedName = item.firstName ? `${item.firstName} ${item.lastName || ''}`.trim() : null;
+            return {
+              id: item.id || item._id,
+              name: item.name || combinedName || 'Unknown',
+              email: item.email || 'N/A',
+              mobile: item.mobile || item.phone || 'N/A',
+              status: item.assessment?.status || item.status || 'N/A',
+              yesCount: item.assessment?.yesCount ?? item.yesCount ?? 'N/A',
+              yesTotal: item.assessment?.yesTotal ?? item.yesTotal ?? 15,
+              percentage: item.assessment?.score?.percentage ?? item.percentage ?? 0,
+              tier: item.assessment?.score?.tier || item.tier || 'N/A',
+              createdAt: item.createdAt ? new Date(item.createdAt) : new Date()
+            };
+          });
+        }
+        return [];
+      } catch (err) {
+        console.error('[DB] Failed to fetch Sachin Talwar logs:', err);
+        return [];
+      }
+    }
+  },
+
   leadData: {
     create: async ({ data }: { data: any }) => {
       const targetProject = localProjects.find(p => p.siteName === data.siteName);

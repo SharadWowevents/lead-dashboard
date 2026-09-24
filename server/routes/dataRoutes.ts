@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ingestLead, getLeads, getUniqueSites, deleteLead, getAnalyses, getLogs, getPromptLogs, getWowosScoreLogs } from '../controllers/dataController.ts';
+import { ingestLead, getLeads, getUniqueSites, deleteLead, getAnalyses, getLogs, getPromptLogs, getWowosScoreLogs, getSachinTalwarLogs } from '../controllers/dataController.ts';
 import { authenticateToken } from '../middleware/auth.ts';
 
 const router = Router();
@@ -15,5 +15,6 @@ router.delete('/data/:id', authenticateToken, deleteLead);
 router.get('/logs', authenticateToken, getLogs);
 router.get('/prompt-logs', authenticateToken, getPromptLogs);
 router.get('/wowos-score-logs', authenticateToken, getWowosScoreLogs);
+router.get('/sachin-talwar-logs', authenticateToken, getSachinTalwarLogs);
 
 export default router;

@@ -14,6 +14,7 @@ import { ResourceLogsTable } from './components/ResourceLogsTable.tsx';
 import { ResourceManager } from './components/ResourceManager.tsx';
 import { PromptLogsTable } from './components/PromptLogsTable.tsx';
 import { WowosScoreLogsTable } from './components/WowosScoreLogsTable.tsx';
+import { SachinTalwarLogsTable } from './components/SachinTalwarLogsTable.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
@@ -28,6 +29,7 @@ function DashboardContent() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [wowosScoreLogs, setWowosScoreLogs] = useState<any[]>([]);
+  const [sachinTalwarLogs, setSachinTalwarLogs] = useState<any[]>([]);
 
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -40,13 +42,20 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes] = await Promise.all([
+      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes, sachinLogsRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/prompt-logs', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/wowos-score-logs', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/wowos-score-logs', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/sachin-talwar-logs', { headers: { Authorization: `Bearer ${token}` } })
       ]);
+
+      if (sachinLogsRes.ok) {
+        const sData = await sachinLogsRes.json();
+        setSachinTalwarLogs(Array.isArray(sData) ? sData : (sData.data || []));
+      }
+
       if (wowosLogsRes.ok) {
         const wData = await wowosLogsRes.json();
         setWowosScoreLogs(Array.isArray(wData) ? wData : (wData.data || []));
@@ -350,6 +359,21 @@ function DashboardContent() {
                           </span>
                         </div>
                         <PromptLogsTable logs={promptLogs} isLoading={isLoading} />
+                      </div>
+                    )}
+
+                    {selectedSite === 'Sachin Talwar Page' && sachinTalwarLogs.length > 0 && (
+                      <div className="mt-8 flex flex-col gap-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <LineChart className="w-5 h-5 text-indigo-500" />
+                            Sachin Talwar Page: Submission Logs
+                          </h3>
+                          <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-semibold">
+                            {sachinTalwarLogs.length} records
+                          </span>
+                        </div>
+                        <SachinTalwarLogsTable logs={sachinTalwarLogs} isLoading={isLoading} />
                       </div>
                     )}
 
