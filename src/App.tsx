@@ -27,6 +27,7 @@ function DashboardContent() {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [wowosScoreLogs, setWowosScoreLogs] = useState<any[]>([]);
 
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
