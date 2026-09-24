@@ -89,7 +89,8 @@ function DashboardContent() {
       '80-20 Book',
       'BO Score',
       'Resource Allocator',
-      'Sachin Talwar Page'
+      'Sachin Talwar Page',
+      'WOWOS Score'
     ]);
 
     const now = new Date();

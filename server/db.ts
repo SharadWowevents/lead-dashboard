@@ -119,6 +119,13 @@ const externalApis = [
     fetchUrl: 'https://api.sachintalwar.com/api/leads?limit=1000&skip=0',
     deleteUrl: (id: string) => `https://api.sachintalwar.com/api/leads/${id}`,
     headers: { 'x-api-key': 'hlVbjkYo9gNhVdhvMdYjB9Q0VZ6NkKfP' }
+  },
+  {
+    siteName: 'WOWOS Score',
+    prefix: 'WOWOS_',
+    fetchUrl: 'https://scoreapi.wowos.in/api/leads?limit=1000',
+    deleteUrl: (id: string) => `https://scoreapi.wowos.in/api/leads/${id}`,
+    headers: { 'x-api-key': 'lM2SpmkwXyQzRx1nX9CXjHLRSiW46RVK' }
   }
 ];
 
