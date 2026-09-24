@@ -126,6 +126,23 @@ function DashboardContent() {
     };
   }, [allLeads]);
 
+  // Helper to ensure any lead list only contains unique emails (keeping the newest)
+  const getUniqueLeads = useCallback((leads: LeadData[]) => {
+    const emailMap = new Map<string, LeadData>();
+    const sorted = [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    sorted.forEach((lead) => {
+      const emailKey = (lead.email || '').toLowerCase().trim();
+      if (!emailKey || emailKey === 'n/a') {
+        emailMap.set(String(lead.id), lead);
+      } else if (!emailMap.has(emailKey)) {
+        emailMap.set(emailKey, lead);
+      }
+    });
+    
+    return Array.from(emailMap.values());
+  }, []);
+
   const uniqueLeadsAllProjects = useMemo(() => {
     const emailMap = new Map<string, LeadData>();
     
@@ -292,7 +309,7 @@ function DashboardContent() {
                     </div>
 
                     <DataTable
-                      leads={allLeads.filter(l => l.siteName === selectedSite)}
+                      leads={getUniqueLeads(allLeads.filter(l => l.siteName === selectedSite))}
                       isLoading={isLoading}
                       selectedSite={selectedSite}
                       onDeleteLead={handleDeleteLead}
