@@ -209,3 +209,19 @@ export async function getSachinTalwarLogs(req: AuthRequest, res: Response) {
     res.status(500).json({ success: false, message: 'Failed to fetch Sachin Talwar logs' });
   }
 }
+
+export async function getAvatarAppData(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const [avatars, users] = await Promise.all([
+      db.avatarApp.findAvatars(),
+      db.avatarApp.findUsers(),
+    ]);
+    res.json({ success: true, data: { avatars, users } });
+  } catch (error) {
+    console.error('Error fetching Avatar App data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch Avatar App data',
+    });
+  }
+}

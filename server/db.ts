@@ -85,6 +85,7 @@ const promptSchema = new mongoose.Schema({
 const boscoreDb = connection.useDb('boscore');
 const promptDbName = process.env.PROMPT_DB_NAME || 'wowos_prompts';
 const promptDb = connection.useDb(promptDbName);
+const avatarAppDb = connection.useDb('avatar-app');
 
 // Register Models
 const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users');
@@ -94,6 +95,10 @@ const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
 const PromptLeadModel = promptDb.model('PromptUser', leadDataSchema, 'users');
 const PromptModel = promptDb.model('Prompt', promptSchema, 'prompts');
 const PromptLogModel = promptDb.model('PromptLog', promptLogSchema, 'promptlogs');
+
+const avatarSchema = new mongoose.Schema({}, { strict: false });
+const AvatarModel = avatarAppDb.model('Avatar', avatarSchema, 'avatars');
+const AvatarAppUserModel = avatarAppDb.model('AvatarAppUser', leadDataSchema, 'users');
 
 const localProjects = [
   { siteName: 'BO Score', model: LeadDataModel },
@@ -325,6 +330,32 @@ export const db = {
         ...externalApis.map(api => api.siteName)
       ];
       return sites.sort();
+    },
+  },
+
+  avatarApp: {
+    findAvatars: async () => {
+      const docs = await AvatarModel.find().sort({ createdAt: -1 });
+      return docs.map(doc => {
+        const { _id, __v, ...data } = doc.toObject();
+        return { ...data, id: _id.toString() };
+      });
+    },
+    findUsers: async () => {
+      const docs = await AvatarAppUserModel.find(
+        {},
+        { name: 1, email: 1, mobile: 1, createdAt: 1 }
+      ).sort({ createdAt: -1 });
+      return docs.map(doc => {
+        const { _id, __v, name, email, mobile, createdAt } = doc.toObject();
+        return {
+          id: _id.toString(),
+          name,
+          email,
+          mobile,
+          createdAt,
+        };
+      });
     },
   },
 

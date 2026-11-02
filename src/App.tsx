@@ -15,6 +15,7 @@ import { ResourceManager } from './components/ResourceManager.tsx';
 import { PromptLogsTable } from './components/PromptLogsTable.tsx';
 import { WowosScoreLogsTable } from './components/WowosScoreLogsTable.tsx';
 import { SachinTalwarLogsTable } from './components/SachinTalwarLogsTable.tsx';
+import { AvatarAppView } from './components/AvatarAppView.tsx';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
@@ -30,6 +31,7 @@ function DashboardContent() {
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [wowosScoreLogs, setWowosScoreLogs] = useState<any[]>([]);
   const [sachinTalwarLogs, setSachinTalwarLogs] = useState<any[]>([]);
+  const [avatarAppCount, setAvatarAppCount] = useState(0);
 
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -105,7 +107,8 @@ function DashboardContent() {
       'BO Score',
       'Resource Allocator',
       'Sachin Talwar Page',
-      'WOWOS Score'
+      'WOWOS Score',
+      'Avatar App'
     ]);
 
     const now = new Date();
@@ -132,6 +135,7 @@ function DashboardContent() {
     sitesSet.forEach(site => {
       if (!counts[site]) counts[site] = 0;
     });
+    counts['Avatar App'] = avatarAppCount;
 
     return {
       uniqueSites: Array.from(sitesSet).sort(),
@@ -139,7 +143,7 @@ function DashboardContent() {
       totalCount: allLeads.length,
       leadsToday: todayCount,
     };
-  }, [allLeads]);
+  }, [allLeads, avatarAppCount]);
 
   // Helper to ensure any lead list only contains unique emails (keeping the newest)
   const getUniqueLeads = useCallback((leads: LeadData[]) => {
@@ -225,7 +229,11 @@ function DashboardContent() {
                 ? 'Resource Manager'
                 : selectedSite
           }
-          displayedLeads={allLeads}
+          displayedLeads={
+            activeView === 'leads' && selectedSite
+              ? allLeads.filter(lead => lead.siteName === selectedSite)
+              : allLeads
+          }
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
@@ -240,6 +248,8 @@ function DashboardContent() {
             <PromptManager />
           ) : activeView === 'resources' ? (
             <ResourceManager />
+          ) : selectedSite === 'Avatar App' ? (
+            <AvatarAppView onAvatarCountChange={setAvatarAppCount} />
           ) : (
             <>
               {/* Quick Metrics Row */}
