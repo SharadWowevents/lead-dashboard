@@ -225,3 +225,84 @@ export async function getAvatarAppData(req: AuthRequest, res: Response): Promise
     });
   }
 }
+
+/**
+ * Controller to fetch all previously exported emails (defaults to scope 'All Projects')
+ * GET /api/exported-emails
+ */
+export async function getExportedEmails(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const scope = (req.query.scope as string) || 'All Projects';
+    const records = await db.exportedEmails.findMany(scope);
+    const emails = records.map(r => r.email);
+    res.json({
+      success: true,
+      count: emails.length,
+      scope,
+      emails,
+    });
+  } catch (error: any) {
+    console.error('Error fetching exported emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve exported emails',
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Controller to save newly exported emails to avoid duplicate exports in future
+ * POST /api/exported-emails
+ */
+export async function recordExportedEmails(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { emails, scope = 'All Projects' } = req.body;
+    if (!Array.isArray(emails) || emails.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Field "emails" must be a non-empty array of strings',
+      });
+      return;
+    }
+
+    const result = await db.exportedEmails.recordMany(emails, scope);
+    res.json({
+      success: true,
+      message: `${result.count} email(s) recorded as exported`,
+      count: result.count,
+      scope,
+    });
+  } catch (error: any) {
+    console.error('Error recording exported emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record exported emails',
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Controller to reset export history so all leads become fresh again
+ * POST /api/exported-emails/reset
+ */
+export async function resetExportedEmails(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const scope = (req.body?.scope as string) || (req.query?.scope as string) || 'All Projects';
+    const result = await db.exportedEmails.reset(scope);
+    res.json({
+      success: true,
+      message: `Export history reset successfully for "${scope}". Cleared ${result.deletedCount} emails.`,
+      deletedCount: result.deletedCount,
+      scope,
+    });
+  } catch (error: any) {
+    console.error('Error resetting exported emails:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset exported emails',
+      error: error.message,
+    });
+  }
+}

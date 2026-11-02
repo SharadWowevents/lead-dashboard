@@ -74,6 +74,15 @@ const promptSchema = new mongoose.Schema({
   prompt: { type: String, required: true }
 }, { timestamps: true });
 
+// Schema for Exported Emails (tracks exported emails for All Projects or per scope)
+const exportedEmailSchema = new mongoose.Schema({
+  email: { type: String, required: true, lowercase: true, trim: true },
+  scope: { type: String, required: true, default: 'All Projects' },
+  exportedAt: { type: Date, default: Date.now },
+}, { timestamps: true });
+
+exportedEmailSchema.index({ email: 1, scope: 1 }, { unique: true });
+
 
 
 
@@ -91,6 +100,7 @@ const avatarAppDb = connection.useDb('avatar-app');
 const AdminUser = boscoreDb.model('AdminUser', adminUserSchema, 'admin_users');
 const LeadDataModel = boscoreDb.model('LeadData', leadDataSchema, 'users');
 const AnalysisModel = boscoreDb.model('Analysis', analysisSchema, 'analyses');
+const ExportedEmailModel = boscoreDb.model('ExportedEmail', exportedEmailSchema, 'exported_emails');
 
 const PromptLeadModel = promptDb.model('PromptUser', leadDataSchema, 'users');
 const PromptModel = promptDb.model('Prompt', promptSchema, 'prompts');
@@ -522,6 +532,72 @@ export const db = {
       if (!deleted) return null;
       return { id };
     }
+  },
+
+  exportedEmails: {
+    findMany: async (scope = 'All Projects') => {
+      try {
+        if (!ExportedEmailModel?.find) return [];
+        const filter = scope ? { scope } : {};
+        const docs = await ExportedEmailModel.find(filter).lean();
+        return docs.map((d: any) => ({
+          email: d.email,
+          scope: d.scope,
+          exportedAt: d.exportedAt,
+        }));
+      } catch (err) {
+        console.error('[DB] Failed to fetch exported emails:', err);
+        return [];
+      }
+    },
+
+    recordMany: async (emails: string[], scope = 'All Projects') => {
+      try {
+        if (!ExportedEmailModel?.bulkWrite) return { count: 0 };
+        const cleanEmails = Array.from(
+          new Set(
+            emails
+              .map(e => (typeof e === 'string' ? e.toLowerCase().trim() : ''))
+              .filter(e => e && e !== 'n/a' && e.includes('@'))
+          )
+        );
+
+        if (cleanEmails.length === 0) return { count: 0 };
+
+        const ops = cleanEmails.map(email => ({
+          updateOne: {
+            filter: { email, scope },
+            update: {
+              $setOnInsert: {
+                email,
+                scope,
+                exportedAt: new Date(),
+              },
+            },
+            upsert: true,
+          },
+        }));
+
+        const result = await ExportedEmailModel.bulkWrite(ops);
+        const count = (result.upsertedCount || 0) + (result.modifiedCount || 0);
+        return { count };
+      } catch (err) {
+        console.error('[DB] Failed to save exported emails:', err);
+        return { count: 0 };
+      }
+    },
+
+    reset: async (scope = 'All Projects') => {
+      try {
+        if (!ExportedEmailModel?.deleteMany) return { deletedCount: 0 };
+        const filter = scope ? { scope } : {};
+        const result = await ExportedEmailModel.deleteMany(filter);
+        return { deletedCount: result.deletedCount || 0 };
+      } catch (err) {
+        console.error('[DB] Failed to reset exported emails:', err);
+        return { deletedCount: 0 };
+      }
+    },
   }
 };
 

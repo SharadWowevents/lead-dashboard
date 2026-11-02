@@ -20,9 +20,10 @@ function escapeCsvCell(value: string | number | null | undefined): string {
  *
  * @param leads Array of LeadData records to export
  * @param siteFilter Optional site name to include in filename
+ * @param customSuffix Optional suffix to append to filename (e.g. 'fresh')
  * @returns boolean indicating success
  */
-export function exportLeadsToCsv(leads: LeadData[], siteFilter?: string | null): boolean {
+export function exportLeadsToCsv(leads: LeadData[], siteFilter?: string | null, customSuffix?: string): boolean {
   if (!leads || leads.length === 0) {
     return false;
   }
@@ -71,7 +72,8 @@ export function exportLeadsToCsv(leads: LeadData[], siteFilter?: string | null):
   const siteSlug = siteFilter && siteFilter.toLowerCase() !== 'all'
     ? siteFilter.replace(/[^a-zA-Z0-9_-]/g, '_')
     : 'all-projects';
-  const fileName = `leads_${siteSlug}_${dateString}_${timeString}.csv`;
+  const suffixPart = customSuffix ? `_${customSuffix.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '';
+  const fileName = `leads_${siteSlug}${suffixPart}_${dateString}_${timeString}.csv`;
 
   // Create temporary link and click it to download
   const url = URL.createObjectURL(blob);

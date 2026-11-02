@@ -19,6 +19,9 @@ interface HeaderProps {
   onOpenIngestTester: () => void;
   selectedSite: string | null;
   displayedLeads: LeadData[];
+  onExportCsv?: () => void;
+  exportButtonLabel?: string;
+  exportCountBadge?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -27,11 +30,18 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenIngestTester,
   selectedSite,
   displayedLeads,
+  onExportCsv,
+  exportButtonLabel,
+  exportCountBadge,
 }) => {
   const { user, logout } = useAuth();
 
   const handleExport = () => {
-    exportLeadsToCsv(displayedLeads, selectedSite);
+    if (onExportCsv) {
+      onExportCsv();
+    } else {
+      exportLeadsToCsv(displayedLeads, selectedSite);
+    }
   };
 
   return (
@@ -90,12 +100,17 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             id="header-download-csv-btn"
             onClick={handleExport}
-            disabled={displayedLeads.length === 0}
+            disabled={exportCountBadge !== undefined ? exportCountBadge === 0 : displayedLeads.length === 0}
             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-white transition disabled:opacity-50 cursor-pointer shadow-xs"
-            title="Download formatted CSV"
+            title={exportButtonLabel || 'Download formatted CSV'}
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <span className="hidden sm:inline">{exportButtonLabel || 'Export CSV'}</span>
+            {exportCountBadge !== undefined && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono">
+                {exportCountBadge}
+              </span>
+            )}
           </button>
 
           <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />

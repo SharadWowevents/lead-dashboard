@@ -17,6 +17,10 @@ import {
   Inbox,
   RefreshCw,
   X,
+  ChevronDown,
+  RotateCcw,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface ExtendedLeadData extends LeadData {
@@ -29,6 +33,9 @@ interface DataTableProps {
   selectedSite: string | null;
   onDeleteLead?: (id: string | number) => Promise<void>;
   onRefresh?: () => void;
+  exportedEmails?: Set<string>;
+  onRecordExportedEmails?: (emails: string[]) => Promise<void>;
+  onResetExportedEmails?: () => Promise<void>;
 }
 
 export const DataTable: React.FC<DataTableProps> = ({
@@ -37,6 +44,9 @@ export const DataTable: React.FC<DataTableProps> = ({
   selectedSite,
   onDeleteLead,
   onRefresh,
+  exportedEmails,
+  onRecordExportedEmails,
+  onResetExportedEmails,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -51,6 +61,19 @@ export const DataTable: React.FC<DataTableProps> = ({
   // Date Range State
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // All Projects Fresh vs Exported state
+  const isAllProjects = !selectedSite || selectedSite === 'All Projects';
+  const [exportFilter, setExportFilter] = useState<'all' | 'fresh' | 'exported'>('all');
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  const isEmailExported = (email?: string | null): boolean => {
+    if (!email || !exportedEmails) return false;
+    const clean = email.toLowerCase().trim();
+    return clean !== 'n/a' && exportedEmails.has(clean);
+  };
 
   // 6 base columns (S.No, Project, Name, Email, Phone, Submitted) + 1 Action column
   const colSpanCount = 6 + (onDeleteLead ? 1 : 0);
@@ -77,11 +100,11 @@ export const DataTable: React.FC<DataTableProps> = ({
     }, 2000);
   };
 
-  // Filter and sort
-  const filteredAndSortedLeads = useMemo(() => {
+  // 1. Base Filter (Search & Date Range)
+  const baseFilteredLeads = useMemo(() => {
     let result = [...leads];
 
-    // 1. Search Filter
+    // Search Filter
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
       result = result.filter(
@@ -93,7 +116,7 @@ export const DataTable: React.FC<DataTableProps> = ({
       );
     }
 
-    // 2. Date Range Filter
+    // Date Range Filter
     if (startDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
@@ -105,7 +128,38 @@ export const DataTable: React.FC<DataTableProps> = ({
       result = result.filter(lead => new Date(lead.createdAt).getTime() <= end.getTime());
     }
 
-    // 3. Sorting
+    return result;
+  }, [leads, searchTerm, startDate, endDate]);
+
+  // 2. Counts for All Projects (Fresh vs Exported)
+  const { freshCount, exportedCount } = useMemo(() => {
+    if (!isAllProjects || !exportedEmails) {
+      return { freshCount: baseFilteredLeads.length, exportedCount: 0 };
+    }
+    let fresh = 0;
+    let exported = 0;
+    baseFilteredLeads.forEach(lead => {
+      if (isEmailExported(lead.email)) {
+        exported++;
+      } else {
+        fresh++;
+      }
+    });
+    return { freshCount: fresh, exportedCount: exported };
+  }, [baseFilteredLeads, isAllProjects, exportedEmails]);
+
+  // 3. Filter by Tab (All, Fresh, Exported) and Sort
+  const filteredAndSortedLeads = useMemo(() => {
+    let result = [...baseFilteredLeads];
+
+    if (isAllProjects) {
+      if (exportFilter === 'fresh') {
+        result = result.filter(lead => !isEmailExported(lead.email));
+      } else if (exportFilter === 'exported') {
+        result = result.filter(lead => isEmailExported(lead.email));
+      }
+    }
+
     result.sort((a, b) => {
       const fieldA = a[sortConfig.key];
       const fieldB = b[sortConfig.key];
@@ -128,7 +182,7 @@ export const DataTable: React.FC<DataTableProps> = ({
     });
 
     return result;
-  }, [leads, searchTerm, startDate, endDate, sortConfig]);
+  }, [baseFilteredLeads, isAllProjects, exportFilter, sortConfig]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredAndSortedLeads.length / pageSize) || 1;
@@ -141,8 +195,84 @@ export const DataTable: React.FC<DataTableProps> = ({
     setCurrentPage(totalPages);
   }
 
-  const handleExportCsv = () => {
-    exportLeadsToCsv(filteredAndSortedLeads, selectedSite);
+  // Export CSV handler
+  const handleExportCsv = async () => {
+    if (isAllProjects) {
+      // Find all fresh leads from baseFilteredLeads (respecting search & dates)
+      const freshLeadsToExport = baseFilteredLeads.filter(lead => !isEmailExported(lead.email));
+
+      if (freshLeadsToExport.length === 0) {
+        setNotification({
+          message: 'All leads in this view have already been exported previously. No fresh leads found.',
+          type: 'info',
+        });
+        return;
+      }
+
+      setIsExporting(true);
+      try {
+        const success = exportLeadsToCsv(freshLeadsToExport, selectedSite, 'fresh');
+        if (success) {
+          const newlyExportedEmails = freshLeadsToExport
+            .map(l => (l.email || '').toLowerCase().trim())
+            .filter(e => e && e !== 'n/a' && e.includes('@'));
+
+          if (onRecordExportedEmails && newlyExportedEmails.length > 0) {
+            await onRecordExportedEmails(newlyExportedEmails);
+          }
+
+          setNotification({
+            message: `Successfully exported ${freshLeadsToExport.length} fresh lead(s)! Emails are recorded and will be excluded in future exports.`,
+            type: 'success',
+          });
+        }
+      } catch (err: any) {
+        console.error('Export error:', err);
+        setNotification({
+          message: `Export failed: ${err.message || 'Unknown error'}`,
+          type: 'error',
+        });
+      } finally {
+        setIsExporting(false);
+      }
+    } else {
+      exportLeadsToCsv(filteredAndSortedLeads, selectedSite);
+    }
+  };
+
+  // Export all leads (including previously exported)
+  const handleExportAll = () => {
+    setShowExportOptions(false);
+    exportLeadsToCsv(baseFilteredLeads, selectedSite, 'all');
+    setNotification({
+      message: `Exported all ${baseFilteredLeads.length} leads (including previously exported).`,
+      type: 'info',
+    });
+  };
+
+  // Reset export history
+  const handleResetExportHistory = async () => {
+    setShowExportOptions(false);
+    if (!window.confirm('Are you sure you want to reset export history for All Projects? All previously exported emails will be cleared, and all leads will be marked as fresh again.')) {
+      return;
+    }
+    if (onResetExportedEmails) {
+      setIsExporting(true);
+      try {
+        await onResetExportedEmails();
+        setNotification({
+          message: 'Export history has been reset. All leads are now marked as fresh.',
+          type: 'success',
+        });
+      } catch (err: any) {
+        setNotification({
+          message: `Failed to reset export history: ${err.message || 'Unknown error'}`,
+          type: 'error',
+        });
+      } finally {
+        setIsExporting(false);
+      }
+    }
   };
 
   const formatDate = (isoString: string): { date: string; time: string } => {
@@ -204,7 +334,7 @@ export const DataTable: React.FC<DataTableProps> = ({
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            placeholder="Search within this project..."
+            placeholder={isAllProjects ? "Search unique leads..." : "Search within this project..."}
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition"
           />
           {searchTerm && (
@@ -218,7 +348,49 @@ export const DataTable: React.FC<DataTableProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-auto">
-          
+          {/* All Projects View Filter (All / Fresh / Exported) */}
+          {isAllProjects && (
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => { setExportFilter('all'); setCurrentPage(1); }}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                  exportFilter === 'all'
+                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Show all unique leads"
+              >
+                All ({baseFilteredLeads.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setExportFilter('fresh'); setCurrentPage(1); }}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  exportFilter === 'fresh'
+                    ? 'bg-emerald-600 text-white font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-emerald-700'
+                }`}
+                title="Show only unexported fresh leads"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Fresh ({freshCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setExportFilter('exported'); setCurrentPage(1); }}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  exportFilter === 'exported'
+                    ? 'bg-slate-700 text-white font-semibold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Show only leads that were previously exported"
+              >
+                <span>Exported ({exportedCount})</span>
+              </button>
+            </div>
+          )}
+
           {/* Date Range Pickers */}
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-xs">
             <input
@@ -262,20 +434,107 @@ export const DataTable: React.FC<DataTableProps> = ({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={filteredAndSortedLeads.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 active:bg-slate-950 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download CSV</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono">
-              {filteredAndSortedLeads.length}
-            </span>
-          </button>
+          {isAllProjects ? (
+            <div className="relative inline-flex items-center">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={isExporting || freshCount === 0}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-l-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 active:bg-slate-950 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+                title={freshCount > 0 ? `Export ${freshCount} fresh lead(s) that haven't been exported yet` : 'All leads in this view have already been exported'}
+              >
+                <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
+                <span>Download Fresh CSV</span>
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono">
+                  {freshCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowExportOptions(!showExportOptions)}
+                className="px-2 py-2 rounded-r-xl border-l border-slate-700 text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 transition cursor-pointer"
+                title="More export options"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {showExportOptions && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setShowExportOptions(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs text-slate-700 animate-in fade-in zoom-in-95">
+                    <button
+                      type="button"
+                      onClick={handleExportAll}
+                      className="w-full px-3.5 py-2 text-left hover:bg-slate-50 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-slate-500" />
+                      <div>
+                        <div className="font-semibold text-slate-800">Export All Leads ({baseFilteredLeads.length})</div>
+                        <div className="text-[10px] text-slate-500">Includes fresh and previously exported</div>
+                      </div>
+                    </button>
+                    {onResetExportedEmails && (
+                      <>
+                        <div className="h-px bg-slate-100 my-1" />
+                        <button
+                          type="button"
+                          onClick={handleResetExportHistory}
+                          className="w-full px-3.5 py-2 text-left hover:bg-rose-50 text-rose-700 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <RotateCcw className="w-4 h-4 text-rose-600" />
+                          <div>
+                            <div className="font-semibold">Reset Export History</div>
+                            <div className="text-[10px] text-rose-500">Mark all {baseFilteredLeads.length} leads as fresh again</div>
+                          </div>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={filteredAndSortedLeads.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 active:bg-slate-950 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download CSV</span>
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono">
+                {filteredAndSortedLeads.length}
+              </span>
+            </button>
+          )}
         </div>
       </div>
+
+      {notification && (
+        <div className={`mx-4 my-2.5 p-3 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+          notification.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : notification.type === 'error'
+            ? 'bg-rose-50 border-rose-200 text-rose-800'
+            : 'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {notification.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+            <span className="font-medium">{notification.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotification(null)}
+            className="p-1 hover:bg-black/5 rounded cursor-pointer text-slate-400 hover:text-slate-700"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Main Table Container */}
       <div className="overflow-x-auto">
@@ -425,16 +684,31 @@ export const DataTable: React.FC<DataTableProps> = ({
 
                     {/* Email */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 group/copy">
-                        <span className="text-slate-700">{lead.email}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(lead.email, 'email')}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 rounded transition cursor-pointer"
-                          title="Copy Email"
-                        >
-                          {isEmailCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                        </button>
+                      <div className="flex flex-col gap-1 items-start">
+                        <div className="flex items-center gap-1.5 group/copy">
+                          <span className="text-slate-700">{lead.email}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(lead.email, 'email')}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 rounded transition cursor-pointer"
+                            title="Copy Email"
+                          >
+                            {isEmailCopied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                        {isAllProjects && (
+                          <div>
+                            {isEmailExported(lead.email) ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-500 border border-slate-200" title="Already exported previously">
+                                Exported
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200" title="Fresh lead: will be exported in next batch">
+                                Fresh
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
 

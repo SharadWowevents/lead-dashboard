@@ -7,6 +7,7 @@ import { DataTable } from './components/DataTable.tsx';
 import { ChangePasswordModal } from './components/ChangePasswordModal.tsx';
 import { IngestTesterModal } from './components/IngestTesterModal.tsx';
 import { LeadData } from './types/index.ts';
+import { exportLeadsToCsv } from './utils/exportCsv.ts';
 import { Users, Globe2, Sparkles, AlertTriangle, LineChart, FileText, MessageSquare } from 'lucide-react';
 import { AnalysisTable } from './components/AnalysisTable.tsx';
 import { PromptManager } from './components/PromptManager.tsx';
@@ -33,6 +34,9 @@ function DashboardContent() {
   const [sachinTalwarLogs, setSachinTalwarLogs] = useState<any[]>([]);
   const [avatarAppCount, setAvatarAppCount] = useState(0);
 
+  // Exported emails set for All Projects fresh-only CSV export
+  const [exportedEmails, setExportedEmails] = useState<Set<string>>(new Set());
+
   // Modals state
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isIngestTesterOpen, setIsIngestTesterOpen] = useState(false);
@@ -44,13 +48,14 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes, sachinLogsRes] = await Promise.all([
+      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes, sachinLogsRes, exportedEmailsRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/prompt-logs', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/wowos-score-logs', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/sachin-talwar-logs', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/sachin-talwar-logs', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/exported-emails?scope=All%20Projects', { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (sachinLogsRes.ok) {
@@ -83,6 +88,13 @@ function DashboardContent() {
       if (promptLogsRes.ok) {
         const plData = await promptLogsRes.json();
         setPromptLogs(plData.data || []);
+      }
+
+      if (exportedEmailsRes.ok) {
+        const expData = await exportedEmailsRes.json();
+        if (Array.isArray(expData.emails)) {
+          setExportedEmails(new Set(expData.emails.map((e: string) => e.toLowerCase().trim())));
+        }
       }
 
     } catch (err: any) {
@@ -186,6 +198,81 @@ function DashboardContent() {
     return Array.from(emailMap.values());
   }, [allLeads]);
 
+  // Save newly exported emails to database
+  const handleRecordExportedEmails = async (newEmails: string[]) => {
+    if (!token || newEmails.length === 0) return;
+    try {
+      const res = await fetch('/api/exported-emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ emails: newEmails, scope: 'All Projects' }),
+      });
+      if (res.ok) {
+        setExportedEmails(prev => {
+          const next = new Set(prev);
+          newEmails.forEach(e => next.add(e.toLowerCase().trim()));
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to record exported emails:', err);
+    }
+  };
+
+  // Reset export history for All Projects
+  const handleResetExportedEmails = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/exported-emails/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ scope: 'All Projects' }),
+      });
+      if (res.ok) {
+        setExportedEmails(new Set());
+      }
+    } catch (err) {
+      console.error('Failed to reset exported emails:', err);
+    }
+  };
+
+  // Fresh leads in All Projects (leads whose emails have never been exported before)
+  const freshAllProjectsLeads = useMemo(() => {
+    return uniqueLeadsAllProjects.filter(lead => {
+      const emailKey = (lead.email || '').toLowerCase().trim();
+      return emailKey && emailKey !== 'n/a' ? !exportedEmails.has(emailKey) : true;
+    });
+  }, [uniqueLeadsAllProjects, exportedEmails]);
+
+  // Export handler for Header's Export button
+  const handleHeaderExportCsv = async () => {
+    if (!selectedSite || selectedSite === 'All Projects') {
+      if (freshAllProjectsLeads.length === 0) {
+        alert('All unique leads have already been exported. No fresh leads found to export.');
+        return;
+      }
+      const success = exportLeadsToCsv(freshAllProjectsLeads, 'All Projects', 'fresh');
+      if (success) {
+        const emailsToSave = freshAllProjectsLeads
+          .map(l => (l.email || '').toLowerCase().trim())
+          .filter(e => e && e !== 'n/a' && e.includes('@'));
+        if (emailsToSave.length > 0) {
+          await handleRecordExportedEmails(emailsToSave);
+        }
+        alert(`Successfully exported ${freshAllProjectsLeads.length} fresh lead(s)! Emails are recorded to prevent duplicate exports.`);
+      }
+    } else {
+      const siteLeads = allLeads.filter(l => l.siteName === selectedSite);
+      exportLeadsToCsv(siteLeads, selectedSite);
+    }
+  };
+
   const handleDeleteLead = async (id: string | number) => {
     if (!token) return;
     try {
@@ -234,7 +321,20 @@ function DashboardContent() {
           displayedLeads={
             activeView === 'leads' && selectedSite
               ? allLeads.filter(lead => lead.siteName === selectedSite)
-              : allLeads
+              : uniqueLeadsAllProjects
+          }
+          onExportCsv={
+            activeView === 'leads' ? handleHeaderExportCsv : undefined
+          }
+          exportButtonLabel={
+            !selectedSite || selectedSite === 'All Projects'
+              ? 'Export Fresh CSV'
+              : 'Export CSV'
+          }
+          exportCountBadge={
+            !selectedSite || selectedSite === 'All Projects'
+              ? freshAllProjectsLeads.length
+              : undefined
           }
         />
 
@@ -309,9 +409,14 @@ function DashboardContent() {
                         <Globe2 className="w-5 h-5 text-indigo-500" />
                         All Projects: Unique Leads
                       </h3>
-                      <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
-                        {uniqueLeadsAllProjects.length} unique people
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                          {freshAllProjectsLeads.length} fresh to export
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
+                          {uniqueLeadsAllProjects.length} unique people
+                        </span>
+                      </div>
                     </div>
 
                     <DataTable
@@ -320,6 +425,9 @@ function DashboardContent() {
                       selectedSite="All Projects"
                       onDeleteLead={handleDeleteLead}
                       onRefresh={fetchLeads}
+                      exportedEmails={exportedEmails}
+                      onRecordExportedEmails={handleRecordExportedEmails}
+                      onResetExportedEmails={handleResetExportedEmails}
                     />
                   </div>
                 ) : (
