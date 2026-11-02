@@ -21,26 +21,46 @@ function escapeCsvCell(value: string | number | null | undefined): string {
  * @param leads Array of LeadData records to export
  * @param siteFilter Optional site name to include in filename
  * @param customSuffix Optional suffix to append to filename (e.g. 'fresh')
+ * @param nameEmailOnly Optional flag to export only 'Name' and 'Email' columns (default true for All Projects)
  * @returns boolean indicating success
  */
-export function exportLeadsToCsv(leads: LeadData[], siteFilter?: string | null, customSuffix?: string): boolean {
+export function exportLeadsToCsv(
+  leads: LeadData[],
+  siteFilter?: string | null,
+  customSuffix?: string,
+  nameEmailOnly?: boolean
+): boolean {
   if (!leads || leads.length === 0) {
     return false;
   }
 
+  // For All Projects, export only Name and Email columns
+  const isAllProjectsExport = nameEmailOnly !== undefined
+    ? nameEmailOnly
+    : (!siteFilter || siteFilter.toLowerCase() === 'all' || siteFilter.toLowerCase() === 'all projects');
+
   // Define column headers
-  const headers = [
-    'Lead ID',
-    'Source Project / Site Name',
-    'Full Name',
-    'Email Address',
-    'Mobile Number',
-    'Created At (UTC)',
-    'Created At (Local Formatted)',
-  ];
+  const headers = isAllProjectsExport
+    ? ['Name', 'Email']
+    : [
+        'Lead ID',
+        'Source Project / Site Name',
+        'Full Name',
+        'Email Address',
+        'Mobile Number',
+        'Created At (UTC)',
+        'Created At (Local Formatted)',
+      ];
 
   // Map rows
   const rows = leads.map((lead) => {
+    if (isAllProjectsExport) {
+      return [
+        escapeCsvCell(lead.name),
+        escapeCsvCell(lead.email),
+      ].join(',');
+    }
+
     const dateObj = new Date(lead.createdAt);
     const localFormatted = isNaN(dateObj.getTime())
       ? lead.createdAt

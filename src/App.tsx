@@ -257,7 +257,7 @@ function DashboardContent() {
         alert('All unique leads have already been exported. No fresh leads found to export.');
         return;
       }
-      const success = exportLeadsToCsv(freshAllProjectsLeads, 'All Projects', 'fresh');
+      const success = exportLeadsToCsv(freshAllProjectsLeads, 'All Projects', 'fresh', true);
       if (success) {
         const emailsToSave = freshAllProjectsLeads
           .map(l => (l.email || '').toLowerCase().trim())

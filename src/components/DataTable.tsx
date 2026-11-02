@@ -211,7 +211,7 @@ export const DataTable: React.FC<DataTableProps> = ({
 
       setIsExporting(true);
       try {
-        const success = exportLeadsToCsv(freshLeadsToExport, selectedSite, 'fresh');
+        const success = exportLeadsToCsv(freshLeadsToExport, selectedSite, 'fresh', true);
         if (success) {
           const newlyExportedEmails = freshLeadsToExport
             .map(l => (l.email || '').toLowerCase().trim())
@@ -243,7 +243,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   // Export all leads (including previously exported)
   const handleExportAll = () => {
     setShowExportOptions(false);
-    exportLeadsToCsv(baseFilteredLeads, selectedSite, 'all');
+    exportLeadsToCsv(baseFilteredLeads, selectedSite, 'all', isAllProjects);
     setNotification({
       message: `Exported all ${baseFilteredLeads.length} leads (including previously exported).`,
       type: 'info',
