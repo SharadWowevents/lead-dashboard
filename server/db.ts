@@ -102,7 +102,8 @@ const AvatarAppUserModel = avatarAppDb.model('AvatarAppUser', leadDataSchema, 'u
 
 const localProjects = [
   { siteName: 'BO Score', model: LeadDataModel },
-  { siteName: '101 Business Prompts', model: PromptLeadModel }
+  { siteName: '101 Business Prompts', model: PromptLeadModel },
+  { siteName: 'Avatar App', model: AvatarAppUserModel }
 ];
 
 // B. External APIs Setup
@@ -144,7 +145,12 @@ const externalApis = [
 
 const formatDoc = (doc: any, siteName: string) => {
   const obj = doc.toObject ? doc.toObject() : doc;
-  return { ...obj, id: obj._id.toString(), siteName, _id: undefined, __v: undefined };
+  const { _id, __v, password, passwordHash, resetPasswordOtp, resetPasswordExpires, ...safeData } = obj;
+  return {
+    ...safeData,
+    id: _id ? _id.toString() : obj.id,
+    siteName,
+  };
 };
 
 export const db = {
@@ -263,6 +269,7 @@ export const db = {
 
       for (const project of localProjects) {
         if (where?.siteName && where.siteName !== project.siteName) continue;
+        if (!project.model?.find) continue;
         const docs = await project.model.find({});
         allLeads = [...allLeads, ...docs.map(doc => formatDoc(doc, project.siteName))];
       }

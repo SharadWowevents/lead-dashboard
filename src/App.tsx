@@ -135,7 +135,7 @@ function DashboardContent() {
     sitesSet.forEach(site => {
       if (!counts[site]) counts[site] = 0;
     });
-    counts['Avatar App'] = avatarAppCount;
+    counts['Avatar App'] = counts['Avatar App'] || avatarAppCount || 0;
 
     return {
       uniqueSites: Array.from(sitesSet).sort(),
@@ -171,7 +171,9 @@ function DashboardContent() {
 
     sortedLeads.forEach((lead) => {
       const emailKey = (lead.email || '').toLowerCase().trim();
-      if (!emailMap.has(emailKey)) {
+      if (!emailKey || emailKey === 'n/a') {
+        emailMap.set(String(lead.id), { ...lead });
+      } else if (!emailMap.has(emailKey)) {
         emailMap.set(emailKey, { ...lead });
       } else {
         const existing = emailMap.get(emailKey)!;
