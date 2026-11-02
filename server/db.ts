@@ -335,21 +335,54 @@ export const db = {
 
   avatarApp: {
     findAvatars: async () => {
+      if (!AvatarModel?.find) return [];
       const docs = await AvatarModel.find().sort({ createdAt: -1 });
-      return docs.map(doc => {
-        const { _id, __v, ...data } = doc.toObject();
-        return { ...data, id: _id.toString() };
+      const rawUserIds = docs
+        .map((d: any) => (d.get ? d.get('user') : d.user))
+        .filter(Boolean);
+
+      let userDocs: any[] = [];
+      if (rawUserIds.length && AvatarAppUserModel?.find) {
+        userDocs = await AvatarAppUserModel.find(
+          { _id: { $in: rawUserIds } },
+          { name: 1, email: 1, mobile: 1, createdAt: 1 }
+        ).lean();
+      }
+
+      const userMap = new Map<string, any>(userDocs.map((u: any) => [u._id.toString(), u]));
+
+      return docs.map((doc: any) => {
+        const { _id, __v, ...data } = doc.toObject ? doc.toObject() : doc;
+        const rawUserId = data.user
+          ? (typeof data.user === 'object' && data.user._id ? data.user._id.toString() : data.user.toString())
+          : '';
+        const matchedUser = rawUserId ? userMap.get(rawUserId) : null;
+        return {
+          ...data,
+          id: _id ? _id.toString() : '',
+          user: rawUserId,
+          userName: matchedUser?.name || '',
+          userEmail: matchedUser?.email || '',
+          userMobile: matchedUser?.mobile || '',
+          userInfo: matchedUser ? {
+            id: matchedUser._id.toString(),
+            name: matchedUser.name,
+            email: matchedUser.email,
+            mobile: matchedUser.mobile,
+          } : null,
+        };
       });
     },
     findUsers: async () => {
+      if (!AvatarAppUserModel?.find) return [];
       const docs = await AvatarAppUserModel.find(
         {},
         { name: 1, email: 1, mobile: 1, createdAt: 1 }
       ).sort({ createdAt: -1 });
-      return docs.map(doc => {
-        const { _id, __v, name, email, mobile, createdAt } = doc.toObject();
+      return docs.map((doc: any) => {
+        const { _id, __v, name, email, mobile, createdAt } = doc.toObject ? doc.toObject() : doc;
         return {
-          id: _id.toString(),
+          id: _id ? _id.toString() : '',
           name,
           email,
           mobile,
