@@ -14,6 +14,7 @@ import {
   Search,
   User,
   Users,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
 
@@ -64,11 +65,21 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
   const [users, setUsers] = useState<AvatarUser[]>([]);
   const [activeCollection, setActiveCollection] = useState<Collection>('avatars');
   const [search, setSearch] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const pageSize = 10;
+
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
 
   const handleCopy = (text: string, key: string) => {
     if (!text) return;
@@ -143,11 +154,34 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
   );
 
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return activeCollection === 'avatars' ? avatars : users;
+    let rows = activeCollection === 'avatars' ? (avatars as any[]) : (users as any[]);
+
+    // Date range filter
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      rows = rows.filter(item => {
+        if (!item.createdAt) return false;
+        const d = new Date(item.createdAt);
+        return !isNaN(d.getTime()) && d.getTime() >= start.getTime();
+      });
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      rows = rows.filter(item => {
+        if (!item.createdAt) return false;
+        const d = new Date(item.createdAt);
+        return !isNaN(d.getTime()) && d.getTime() <= end.getTime();
+      });
+    }
+
+    if (!search.trim()) return rows;
     const query = search.trim().toLowerCase();
 
     if (activeCollection === 'avatars') {
-      return avatars.filter(row => {
+      return (rows as AvatarRecord[]).filter(row => {
         const info = resolveUserInfo(row);
         const title = String(row.title || '').toLowerCase();
         return (
@@ -161,7 +195,7 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
       });
     }
 
-    return users.filter(user => {
+    return (rows as AvatarUser[]).filter(user => {
       return (
         String(user.name || '').toLowerCase().includes(query) ||
         String(user.email || '').toLowerCase().includes(query) ||
@@ -169,7 +203,7 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
         String(user.id || '').toLowerCase().includes(query)
       );
     });
-  }, [avatars, users, activeCollection, search, resolveUserInfo]);
+  }, [avatars, users, activeCollection, startDate, endDate, search, resolveUserInfo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -178,6 +212,8 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
     setActiveCollection(collection);
     setCurrentPage(1);
     setSearch('');
+    setStartDate('');
+    setEndDate('');
   };
 
   return (
@@ -223,7 +259,7 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-2">
             {(['avatars', 'users'] as const).map(collection => (
               <button
@@ -240,22 +276,67 @@ export const AvatarAppView: React.FC<AvatarAppViewProps> = ({ onAvatarCountChang
               </button>
             ))}
           </div>
-          <div className="relative w-full sm:max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={event => {
-                setSearch(event.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder={
-                activeCollection === 'avatars'
-                  ? 'Search by title, user name, email, or ID...'
-                  : 'Search users by name, email, mobile...'
-              }
-              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-            />
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Date Range Pickers */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-xs">
+              <input
+                type="date"
+                value={startDate}
+                max={todayStr}
+                onChange={e => {
+                  setStartDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer"
+                title="Start Date"
+              />
+              <span className="text-slate-400 text-xs font-medium">to</span>
+              <input
+                type="date"
+                value={endDate}
+                max={todayStr}
+                onChange={e => {
+                  setEndDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer"
+                title="End Date"
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setCurrentPage(1);
+                  }}
+                  className="ml-1 p-0.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                  title="Clear Dates"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64 md:w-72">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={event => {
+                  setSearch(event.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder={
+                  activeCollection === 'avatars'
+                    ? 'Search by title, user name, email, or ID...'
+                    : 'Search users by name, email, mobile...'
+                }
+                className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+              />
+            </div>
           </div>
         </div>
 
