@@ -4,6 +4,7 @@ import authRoutes from './routes/authRoutes.ts';
 import dataRoutes from './routes/dataRoutes.ts';
 import { isPrismaConnected } from './db.ts';
 import promptRoutes from './routes/promptRoutes.ts';
+import { projectDirectoryProjectRoutes, projectDirectoryTypeRoutes } from './routes/projectDirectoryRoutes.ts';
 
 export function createApp(): Express {
   const app = express();
@@ -71,6 +72,10 @@ export function createApp(): Express {
 
   // Mount new Prompt CRUD routes
   app.use('/api/prompts', promptRoutes);
+
+  // Projects Directory (ported from ProjectsList MERN app) — original paths preserved
+  app.use('/api/projects', projectDirectoryProjectRoutes);
+  app.use('/api/types', projectDirectoryTypeRoutes);
 
   // Global Error Handler
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {

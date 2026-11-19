@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Filter, Search, Globe, Link as LinkIcon, MessageSquare } from 'lucide-react';
+import { Layers, Filter, Search, Globe, Link as LinkIcon, MessageSquare, FolderGit2 } from 'lucide-react';
 
 interface SidebarProps {
   sites: string[];
@@ -7,8 +7,8 @@ interface SidebarProps {
   onSelectSite: (site: string | null) => void;
   siteCounts: Record<string, number>;
   totalCount: number;
-  activeView: 'leads' | 'prompts' | 'resources';
-  onSetActiveView: (view: 'leads' | 'prompts' | 'resources') => void;
+  activeView: 'leads' | 'prompts' | 'resources' | 'projects';
+  onSetActiveView: (view: 'leads' | 'prompts' | 'resources' | 'projects') => void;
   onOpenIngestTester: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
@@ -67,6 +67,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex items-center gap-2.5 truncate">
               <MessageSquare className={`w-4 h-4 ${activeView === 'prompts' ? 'text-white' : 'text-slate-400'}`} />
               <span className="truncate">Manage 101 Prompts</span>
+            </div>
+          </button>
+
+          {/* Projects Directory Button (ported from ProjectsList) */}
+          <button
+            type="button"
+            onClick={() => {
+              onSetActiveView('projects');
+              onCloseMobile();
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+              activeView === 'projects'
+                ? 'bg-indigo-600 text-white shadow-sm font-semibold'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 truncate">
+              <FolderGit2 className={`w-4 h-4 ${activeView === 'projects' ? 'text-white' : 'text-slate-400'}`} />
+              <span className="truncate">Projects Directory</span>
             </div>
           </button>
 

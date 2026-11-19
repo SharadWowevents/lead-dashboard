@@ -83,6 +83,44 @@ const exportedEmailSchema = new mongoose.Schema({
 
 exportedEmailSchema.index({ email: 1, scope: 1 }, { unique: true });
 
+// --- Projects Directory (ported from ProjectsList MERN app) ---
+// NOTE: original frontend types declared status 'Active', but the UI/backend
+// actually use 'Completed' | 'In progress' | 'Inactive' everywhere, so that is the real enum.
+const directoryProjectSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  description: { type: String, default: '' },
+  type: { type: String, required: true },
+  link: { type: String, default: '' },
+  isLive: { type: Boolean, default: false },
+  date: { type: String, required: true }, // YYYY-MM-DD
+  status: { type: String, enum: ['Completed', 'Inactive', 'In progress'], required: true },
+  tags: { type: [String], default: [] },
+  techStack: { type: [String], default: [] },
+  githubUrl: { type: String, default: '' },
+  notes: { type: String, default: '' },
+}, { timestamps: true });
+
+const directoryProjectTypeSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  color: { type: String, default: 'indigo' },
+  isDefault: { type: Boolean, default: false },
+}, { timestamps: true });
+
+const formatDirectoryDoc = (doc: any) => {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  const { _id, __v, ...rest } = obj;
+  return { ...rest, id: _id ? _id.toString() : obj.id };
+};
+
+export const DIRECTORY_DEFAULT_TYPES = [
+  { name: 'Dashboard', color: 'indigo', isDefault: true },
+  { name: 'Tracker', color: 'emerald', isDefault: true },
+  { name: 'Calculator', color: 'amber', isDefault: true },
+  { name: 'AI Tool', color: 'purple', isDefault: false },
+  { name: 'Portfolio', color: 'sky', isDefault: false },
+  { name: 'Utility', color: 'rose', isDefault: false },
+];
+
 
 
 
@@ -105,6 +143,11 @@ const ExportedEmailModel = boscoreDb.model('ExportedEmail', exportedEmailSchema,
 const PromptLeadModel = promptDb.model('PromptUser', leadDataSchema, 'users');
 const PromptModel = promptDb.model('Prompt', promptSchema, 'prompts');
 const PromptLogModel = promptDb.model('PromptLog', promptLogSchema, 'promptlogs');
+
+// Projects Directory lives in its own DB so existing ProjectsList data is reused as-is
+const projectsDb = connection.useDb(process.env.PROJECTS_DB_NAME || 'project-directory');
+const DirectoryProjectModel = projectsDb.model('DirectoryProject', directoryProjectSchema, 'projects');
+const DirectoryProjectTypeModel = projectsDb.model('DirectoryProjectType', directoryProjectTypeSchema, 'projecttypes');
 
 const avatarSchema = new mongoose.Schema({}, { strict: false });
 const AvatarModel = avatarAppDb.model('Avatar', avatarSchema, 'avatars');
@@ -264,6 +307,51 @@ export const db = {
         return [];
       }
     }
+  },
+
+  // --- PROJECTS DIRECTORY (ported from ProjectsList) ---
+  directoryProjects: {
+    findMany: async () => {
+      const docs = await DirectoryProjectModel.find().sort({ createdAt: -1 });
+      return docs.map(formatDirectoryDoc);
+    },
+    create: async (data: any) => formatDirectoryDoc(await DirectoryProjectModel.create(data)),
+    update: async (id: string, data: any) => {
+      const { id: _omit, createdAt: _c, updatedAt: _u, ...safe } = data || {};
+      const doc = await DirectoryProjectModel.findByIdAndUpdate(id, safe, { returnDocument: 'after', runValidators: true });
+      return doc ? formatDirectoryDoc(doc) : null;
+    },
+    delete: async (id: string) => {
+      const doc = await DirectoryProjectModel.findByIdAndDelete(id);
+      return doc ? { id } : null;
+    },
+    importMany: async (items: any[], replaceExisting = false) => {
+      if (replaceExisting) await DirectoryProjectModel.deleteMany({});
+      const clean = (items || []).map(({ id, _id, createdAt, updatedAt, ...rest }: any) => rest);
+      if (!clean.length) return [];
+      const inserted = await DirectoryProjectModel.insertMany(clean);
+      return inserted.map(formatDirectoryDoc);
+    },
+  },
+
+  directoryTypes: {
+    findMany: async () => {
+      // Seed the 6 original default types on first use (original app showed 00/empty until types were created)
+      if ((await DirectoryProjectTypeModel.countDocuments()) === 0) {
+        await DirectoryProjectTypeModel.insertMany(DIRECTORY_DEFAULT_TYPES).catch(() => {});
+      }
+      const docs = await DirectoryProjectTypeModel.find().sort({ createdAt: 1 });
+      return docs.map(formatDirectoryDoc);
+    },
+    create: async (data: { name: string; color?: string; isDefault?: boolean }) => {
+      const existing = await DirectoryProjectTypeModel.findOne({ name: new RegExp(`^${data.name}$`, 'i') });
+      if (existing) return formatDirectoryDoc(existing);
+      return formatDirectoryDoc(await DirectoryProjectTypeModel.create(data));
+    },
+    delete: async (id: string) => {
+      const doc = await DirectoryProjectTypeModel.findByIdAndDelete(id);
+      return doc ? { id } : null;
+    },
   },
 
   leadData: {

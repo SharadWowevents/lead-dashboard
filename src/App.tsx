@@ -17,10 +17,14 @@ import { PromptLogsTable } from './components/PromptLogsTable.tsx';
 import { WowosScoreLogsTable } from './components/WowosScoreLogsTable.tsx';
 import { SachinTalwarLogsTable } from './components/SachinTalwarLogsTable.tsx';
 import { AvatarAppView } from './components/AvatarAppView.tsx';
+import ProjectsDirectoryPage from './components/ProjectsDirectoryPage.tsx';
+import { MatchedProjectUrl } from './components/MatchedProjectUrl.tsx';
+import { Project as DirectoryProject } from './types/projects.ts';
+import { findProjectForSite } from './utils/projectsHelpers.ts';
 
 function DashboardContent() {
   const { token, logout } = useAuth();
-  const [activeView, setActiveView] = useState<'leads' | 'prompts' | 'resources'>('leads');
+  const [activeView, setActiveView] = useState<'leads' | 'prompts' | 'resources' | 'projects'>('leads');
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
 
   const [allLeads, setAllLeads] = useState<LeadData[]>([]);
@@ -33,6 +37,8 @@ function DashboardContent() {
   const [wowosScoreLogs, setWowosScoreLogs] = useState<any[]>([]);
   const [sachinTalwarLogs, setSachinTalwarLogs] = useState<any[]>([]);
   const [avatarAppCount, setAvatarAppCount] = useState(0);
+  // Projects Directory entries — used to show a sidebar project's live URL on its page heading
+  const [directoryProjects, setDirectoryProjects] = useState<DirectoryProject[]>([]);
 
   // Exported emails set for All Projects fresh-only CSV export
   const [exportedEmails, setExportedEmails] = useState<Set<string>>(new Set());
@@ -48,15 +54,21 @@ function DashboardContent() {
     setErrorNotice(null);
 
     try {
-      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes, sachinLogsRes, exportedEmailsRes] = await Promise.all([
+      const [leadsRes, analysesRes, logsRes, promptLogsRes, wowosLogsRes, sachinLogsRes, exportedEmailsRes, directoryProjectsRes] = await Promise.all([
         fetch('/api/data', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/analyses', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/logs', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/prompt-logs', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/wowos-score-logs', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/sachin-talwar-logs', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/exported-emails?scope=All%20Projects', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/exported-emails?scope=All%20Projects', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
       ]);
+
+      if (directoryProjectsRes.ok) {
+        const pData = await directoryProjectsRes.json();
+        setDirectoryProjects(Array.isArray(pData) ? pData : (pData.data || []));
+      }
 
       if (sachinLogsRes.ok) {
         const sData = await sachinLogsRes.json();
@@ -109,6 +121,17 @@ function DashboardContent() {
     fetchLeads();
   }, [fetchLeads]);
 
+  // Keep directory URLs fresh after projects are added/edited in the Projects Directory page
+  useEffect(() => {
+    if (activeView !== 'leads' || !token) return;
+    fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (Array.isArray(data)) setDirectoryProjects(data);
+      })
+      .catch(() => {});
+  }, [activeView, token]);
+
   const { uniqueSites, siteCounts, totalCount, leadsToday } = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -156,6 +179,12 @@ function DashboardContent() {
       leadsToday: todayCount,
     };
   }, [allLeads, avatarAppCount]);
+
+  // Directory project whose name matches the selected sidebar site (e.g. "101 Business Prompt")
+  const matchedDirectoryProject = useMemo(
+    () => findProjectForSite(directoryProjects, selectedSite),
+    [directoryProjects, selectedSite]
+  );
 
   // Helper to ensure any lead list only contains unique emails (keeping the newest)
   const getUniqueLeads = useCallback((leads: LeadData[]) => {
@@ -311,12 +340,15 @@ function DashboardContent() {
           onToggleMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenChangePassword={() => setIsChangePasswordOpen(true)}
           onOpenIngestTester={() => setIsIngestTesterOpen(true)}
+          hideExport={activeView !== 'leads'}
           selectedSite={
             activeView === 'prompts'
               ? 'Prompt Manager'
               : activeView === 'resources'
                 ? 'Resource Manager'
-                : selectedSite
+                : activeView === 'projects'
+                  ? 'Projects Directory'
+                  : selectedSite
           }
           displayedLeads={
             activeView === 'leads' && selectedSite
@@ -338,20 +370,33 @@ function DashboardContent() {
           }
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
-          {errorNotice && (
+        <main className={activeView === 'projects' ? 'flex-1 flex flex-col min-w-0 w-full' : 'flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6'}>
+          {activeView !== 'projects' && errorNotice && (
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
               <span>{errorNotice}</span>
             </div>
           )}
 
-          {activeView === 'prompts' ? (
+          {activeView === 'projects' ? (
+            <ProjectsDirectoryPage onToggleMobileMenu={() => setIsMobileSidebarOpen(true)} />
+          ) : activeView === 'prompts' ? (
             <PromptManager />
           ) : activeView === 'resources' ? (
             <ResourceManager />
           ) : selectedSite === 'Avatar App' ? (
-            <AvatarAppView onAvatarCountChange={setAvatarAppCount} />
+            <div className="flex flex-col gap-3">
+              {matchedDirectoryProject && (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <Globe2 className="w-5 h-5 text-indigo-500" />
+                    Project: {selectedSite}
+                  </h3>
+                  <MatchedProjectUrl project={matchedDirectoryProject} />
+                </div>
+              )}
+              <AvatarAppView onAvatarCountChange={setAvatarAppCount} />
+            </div>
           ) : (
             <>
               {/* Quick Metrics Row */}
@@ -433,14 +478,20 @@ function DashboardContent() {
                 ) : (
                   // INDIVIDUAL PROJECT VIEW
                   <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                         <Globe2 className="w-5 h-5 text-indigo-500" />
                         Project: {selectedSite}
                       </h3>
-                      <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700">
-                        {allLeads.filter(l => l.siteName === selectedSite).length} records
-                      </span>
+                      {/* Right side of heading: live URL from Projects Directory (name-matched), with copy + redirect */}
+                      <div className="flex items-center gap-2 ml-auto min-w-0">
+                        {matchedDirectoryProject && (
+                          <MatchedProjectUrl project={matchedDirectoryProject} />
+                        )}
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-xs font-semibold text-slate-700 shrink-0">
+                          {allLeads.filter(l => l.siteName === selectedSite).length} records
+                        </span>
+                      </div>
                     </div>
 
                     <DataTable

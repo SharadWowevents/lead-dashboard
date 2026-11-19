@@ -22,6 +22,7 @@ interface HeaderProps {
   onExportCsv?: () => void;
   exportButtonLabel?: string;
   exportCountBadge?: number;
+  hideExport?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
   onExportCsv,
   exportButtonLabel,
   exportCountBadge,
+  hideExport,
 }) => {
   const { user, logout } = useAuth();
 
@@ -95,7 +97,8 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Ingest API Snippet</span>
           </button> */}
 
-          {/* Download CSV */}
+          {/* Download CSV (hidden on views with their own export, e.g. Projects Directory) */}
+          {!hideExport && (
           <button
             type="button"
             id="header-download-csv-btn"
@@ -112,6 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             )}
           </button>
+          )}
 
           <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
 

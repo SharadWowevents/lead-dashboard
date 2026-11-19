@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+/* Projects Directory now uses the standard lead-dashboard theme
+   (slate/indigo, white rounded cards, default sans typography) —
+   no page-specific fonts or colours are needed. */
