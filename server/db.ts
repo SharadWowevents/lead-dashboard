@@ -185,8 +185,8 @@ const externalApis = [
   {
     siteName: 'WOWOS Score',
     prefix: 'WOWOS_',
-    fetchUrl: 'https://scoreapi.wowos.in/api/leads?limit=1000',
-    deleteUrl: (id: string) => `https://scoreapi.wowos.in/api/leads/${id}`,
+    fetchUrl: 'https://score.wowos.in/api/leads?limit=1000',
+    deleteUrl: (id: string) => `https://score.wowos.in/api/leads/${id}`,
     headers: { 'x-api-key': 'lM2SpmkwXyQzRx1nX9CXjHLRSiW46RVK' }
   }
 ];
@@ -249,7 +249,7 @@ export const db = {
   wowosScoreLogs: {
     findMany: async () => {
       try {
-        const res = await fetch('https://scoreapi.wowos.in/api/leads?limit=1000', {
+        const res = await fetch('https://score.wowos.in/api/leads?limit=1000', {
           headers: { 'x-api-key': 'lM2SpmkwXyQzRx1nX9CXjHLRSiW46RVK' }
         });
         if (res.ok) {
